@@ -1,6 +1,6 @@
 --[========================================================================--
---            KEN HUB — NEXUS AI / ULTIMATE ALL-IN-ONE SUITE v8.0           --
---   Key Verification, Config GUI, Real Combat Damage, & Auto Server Hop   --
+--          KEN HUB — NEXUS AI / ULTIMATE EXECUTABLE FIX v9.0             --
+--   Secure HttpGet Wrapper, Enhanced Error Suppression & Native UI Hook    --
 --[========================================================================--
 
 local Players = game:GetService("Players")
@@ -15,15 +15,14 @@ local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
+-- Safe Execution Environment Verification
 local canWrite = (writefile ~= nil and makefolder ~= nil)
 local canRead = (readfile ~= nil and isfile ~= nil)
 
--- Comprehensive All-In-One Configuration Registry
 local Config = {
     KeyWebsite = "https://jinwoosung555.github.io/Keyy/",
-    StorageFile = "KenHub_AllInOne_v8.json",
+    StorageFile = "KenHub_ExecutableFix_v9.json",
     
-    -- Auto Bounty & Combat Engine
     AutoBounty = false,
     ServerHopWhenNoTargets = true,
     SafeZone = {
@@ -36,15 +35,12 @@ local Config = {
         List = {"Ken Hub Nexus AI > All", "Too Easy Auto Bounty!"},
         Delay = 12
     },
-    
-    -- Extra Features
     PlayerAimbot = false,
     FOVEnabled = true,
     FOVRadius = 140,
     NotificationsEnabled = true
 }
 
--- Key Management (24H Local File Cache)
 local function SaveKeyData(key)
     if canWrite then
         pcall(function()
@@ -70,23 +66,34 @@ local function LoadKeyData()
     return nil
 end
 
--- FOV Circle Utility
+-- Safely protect against Drawing missing environment errors on low-end mobile executors
 local FOVCircle
 pcall(function()
-    FOVCircle = Drawing.new("Circle")
-    FOVCircle.Visible = false
-    FOVCircle.Thickness = 1.2
-    FOVCircle.NumSides = 90
-    FOVCircle.Color = Color3.fromRGB(168, 85, 247)
-    FOVCircle.Filled = false
-    FOVCircle.Transparency = 0.8
+    if Drawing and Drawing.new then
+        FOVCircle = Drawing.new("Circle")
+        FOVCircle.Visible = false
+        FOVCircle.Thickness = 1.2
+        FOVCircle.NumSides = 90
+        FOVCircle.Color = Color3.fromRGB(168, 85, 247)
+        FOVCircle.Filled = false
+        FOVCircle.Transparency = 0.8
+    end
 end)
 
--- Toast Notification Engine
+-- Core Notification System
 local NotifGui = Instance.new("ScreenGui")
-NotifGui.Name = "KenHubAllInOneNotifs"
+NotifGui.Name = "KenHubFixNotifs"
 NotifGui.ResetOnSpawn = false
-pcall(function() NotifGui.Parent = CoreGui end)
+pcall(function() 
+    if syn and syn.protect_gui then
+        syn.protect_gui(NotifGui)
+        NotifGui.Parent = CoreGui
+    elseif gethui then
+        NotifGui.Parent = gethui()
+    else
+        NotifGui.Parent = CoreGui
+    end
+end)
 
 local NotifLayout = Instance.new("UIListLayout")
 NotifLayout.Parent = NotifGui
@@ -152,9 +159,15 @@ end
 local LaunchHubInterface
 
 local KeyGui = Instance.new("ScreenGui")
-KeyGui.Name = "KenHubAuth"
+KeyGui.Name = "KenHubAuthFix"
 KeyGui.ResetOnSpawn = false
-pcall(function() KeyGui.Parent = CoreGui end)
+pcall(function() 
+    if gethui then
+        KeyGui.Parent = gethui()
+    else
+        KeyGui.Parent = CoreGui
+    end
+end)
 
 local Dim = Instance.new("Frame")
 Dim.Size = UDim2.new(1, 0, 1, 0)
@@ -180,7 +193,7 @@ TitleLbl.Size = UDim2.new(1, 0, 0, 35)
 TitleLbl.Position = UDim2.new(0, 0, 0, 20)
 TitleLbl.BackgroundTransparency = 1
 TitleLbl.Font = Enum.Font.GothamBold
-TitleLbl.Text = "Ken Hub <font color='#a855f7'>All-In-One Security</font>"
+TitleLbl.Text = "Ken Hub <font color='#a855f7'>Executable Fix v9</font>"
 TitleLbl.RichText = true
 TitleLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
 TitleLbl.TextSize = 16
@@ -241,7 +254,7 @@ local function BootHub()
     end)
     task.wait(0.3)
     pcall(function() KeyGui:Destroy() end)
-    SendNotification("Ken Hub", "Key verified! Select your faction/side, then turn on Auto Bounty.")
+    SendNotification("Ken Hub", "Successfully initialized! Choose faction, then enable Auto Bounty.")
     LaunchHubInterface()
 end
 
@@ -288,13 +301,13 @@ local function ServerHop()
     end)
 end
 
--- Get Blox Fruits Combat Remote Hook
+-- Combat Remote Detector
 local function GetCombatRemote()
     local remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage
     return remotes:FindFirstChild("Validator") or remotes:FindFirstChild("CommF_") or remotes:FindFirstChild("RegisterHit")
 end
 
--- Find Closest Target
+-- Closest Target Scanner
 local function GetClosestTarget()
     local target = nil
     local shortestDist = math.huge
@@ -319,12 +332,18 @@ local function GetClosestTarget()
     return target
 end
 
--- Main Configuration UI Hub Interface
+-- Main UI Setup
 LaunchHubInterface = function()
     local MainGui = Instance.new("ScreenGui")
-    MainGui.Name = "KenHubAllInOneUI"
+    MainGui.Name = "KenHubMainFixUI"
     MainGui.ResetOnSpawn = false
-    pcall(function() MainGui.Parent = CoreGui end)
+    pcall(function() 
+        if gethui then
+            MainGui.Parent = gethui()
+        else
+            MainGui.Parent = CoreGui
+        end
+    end)
 
     local MainContainer = Instance.new("Frame")
     MainContainer.Size = UDim2.new(0, 480, 0, 340)
@@ -340,11 +359,11 @@ LaunchHubInterface = function()
     Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 12)
 
     local Title = Instance.new("TextLabel")
-    Title.Size = UDim2.new(0, 300, 1, 0)
+    Title.Size = UDim2.new(0, 320, 1, 0)
     Title.Position = UDim2.new(0, 14, 0, 0)
     Title.BackgroundTransparency = 1
     Title.Font = Enum.Font.GothamBold
-    Title.Text = "Ken Hub — <font color='#a855f7'>All-In-One Nexus Suite</font>"
+    Title.Text = "Ken Hub — <font color='#a855f7'>Nexus Execution Fix v9</font>"
     Title.RichText = true
     Title.TextColor3 = Color3.fromRGB(255, 255, 255)
     Title.TextSize = 14
@@ -362,7 +381,7 @@ LaunchHubInterface = function()
     CloseBtn.Parent = TopBar
 
     CloseBtn.MouseButton1Click:Connect(function()
-        if FOVCircle then pcall(function() FOVCircle:Remove() end) end
+        if FOVCircle and FOVCircle.Remove then pcall(function() FOVCircle:Remove() end) end
         MainGui:Destroy()
     end)
 
@@ -401,18 +420,17 @@ LaunchHubInterface = function()
         s.TextSize = 11
         s.Parent = b
 
-        local state = defaultVal
         b.MouseButton1Click:Connect(function()
-            state = not state
-            s.Text = state and "[ON]" or "[OFF]"
-            s.TextColor3 = state and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(239, 68, 68)
-            callback(state)
+            defaultVal = not defaultVal
+            s.Text = defaultVal and "[ON]" or "[OFF]"
+            s.TextColor3 = defaultVal and Color3.fromRGB(74, 222, 128) or Color3.fromRGB(239, 68, 68)
+            callback(defaultVal)
         end)
     end
 
     AddToggle("Auto Bounty Engine", Config.AutoBounty, function(v) 
         Config.AutoBounty = v 
-        SendNotification("Nexus AI", v and "Auto Bounty started!" : "Auto Bounty paused.")
+        SendNotification("Nexus AI", v and "Auto Bounty running!" : "Auto Bounty paused.")
     end)
     AddToggle("Server Hop When No Targets", Config.ServerHopWhenNoTargets, function(v) Config.ServerHopWhenNoTargets = v end)
     AddToggle("SafeZone Low Health Escape", Config.SafeZone.Enable, function(v) Config.SafeZone.Enable = v end)
@@ -420,7 +438,7 @@ LaunchHubInterface = function()
     AddToggle("Player Aimbot Assist", Config.PlayerAimbot, function(v) Config.PlayerAimbot = v end)
 end
 
--- Background Worker Loops (Auto Bounty & Damage Routing)
+-- Auto Bounty Damage Daemon Loop
 task.spawn(function()
     while task.wait(0.25) do
         if getgenv().KenVerified then
@@ -431,14 +449,12 @@ task.spawn(function()
                     local hum = char and char:FindFirstChild("Humanoid")
                     
                     if root and hum then
-                        -- Low Health SafeZone Check
                         if Config.SafeZone.Enable and hum.Health <= Config.SafeZone.LowHealth then
                             root.CFrame = root.CFrame + Vector3.new(0, Config.SafeZone.TeleportY, 0)
                             task.wait(5)
                             return
                         end
 
-                        -- Target Seeking & Damage Application
                         local target = GetClosestTarget()
                         if target and target.Character then
                             local tRoot = target.Character:FindFirstChild("HumanoidRootPart")
@@ -493,7 +509,7 @@ task.spawn(function()
     end
 end)
 
--- Render Loop for Aimbot and FOV
+-- Render Loop for Aimbot
 RunService.RenderStepped:Connect(function()
     if not getgenv().KenVerified then return end
 
@@ -519,7 +535,7 @@ RunService.RenderStepped:Connect(function()
                     local head = plr.Character.Head
                     local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
                     if onScreen then
-                        local screenDist = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(headPos.X, headPos.Y)).Magnitude
+                      local screenDist = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(headPos.X, headPos.Y)).Magnitude
                         if screenDist <= Config.FOVRadius and screenDist < minDist then
                             minDist = screenDist
                             targetHead = head
