@@ -1,6 +1,6 @@
 --[========================================================================--
 --                 KEN HUB — NEXT-GEN PREMIUM EDITION                       --
---             Enhanced Glassmorphic UI & Advanced Key System               --
+--        Integrated with Persistent Key System & Auto-Execution Engine     --
 --[========================================================================--
 
 local Players = game:GetService("Players")
@@ -31,18 +31,23 @@ local Config = {
     NotificationsEnabled = true,
     PerformanceMode = false,
     WebsiteKeyURL = "https://jinwoosung555.github.io/Keyy/",
-    KeyStorageFile = "KenHub_AuthKey.json"
+    KeyStorageFile = "KenHub_AuthKey_v2.json"
 }
 
 local CachedNPCs = {}
 local LastCacheUpdate = 0
 local CacheInterval = 2.0
 
--- Persistent Key Validation Helper
+-- Persistent 24-Hour Key Storage & Expiration Validator
 local function SaveSavedKey(key)
     if writefile then
-        pcall(function()
-            writefile(Config.KeyStorageFile, HttpService:JSONEncode({Key = key, Timestamp = os.time()}))
+        pcall(function--[[Local Save]]()
+            local payload = {
+                Key = key,
+                Timestamp = os.time(),
+                ExpiresAt = os.time() + 86400 -- 24 Hours validity
+            }
+            writefile(Config.KeyStorageFile, HttpService:JSONEncode(payload))
         end)
     end
 end
@@ -52,10 +57,13 @@ local function LoadSavedKey()
         local success, data = pcall(function()
             return HttpService:JSONDecode(readfile(Config.KeyStorageFile))
         end)
-        if success and data and data.Key then
-            -- Optional: Check if key is expired (e.g., 24 hours = 86400 seconds)
-            if os.time() - (data.Timestamp or 0) < 86400 then
+        if success and data and data.Key and data.ExpiresAt then
+            -- Check if current time has passed the 24-hour expiration threshold
+            if os.time() < data.ExpiresAt then
                 return data.Key
+            else
+                -- Expired: Clean up local storage so it prompts again
+                pcall(function() delfile(Config.KeyStorageFile) end)
             end
         end
     end
@@ -145,6 +153,9 @@ local function SendNotification(title, message, duration)
     end)
 end
 
+-- Main UI Modern Architecture Forward Declaration
+local LoadMainUI
+
 -- Advanced Authentication / Key Gate UI
 local KeySystemGUI = Instance.new("ScreenGui")
 KeySystemGUI.Name = "KenHubKeySystem"
@@ -187,7 +198,7 @@ KeyInfo.BackgroundTransparency = 1
 KeyInfo.Position = UDim2.new(0, 24, 0, 60)
 KeyInfo.Size = UDim2.new(1, -48, 0, 35)
 KeyInfo.Font = Enum.Font.Gotham
-KeyInfo.Text = "Enter your active access key or visit our secure portal to generate one instantly."
+KeyInfo.Text = "Enter your active access key or visit our portal (" .. Config.WebsiteKeyURL .. ") to generate one."
 KeyInfo.TextColor3 = Color3.fromRGB(150, 150, 165)
 KeyInfo.TextSize = 12
 KeyInfo.TextWrapped = true
@@ -198,7 +209,7 @@ WebBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
 WebBtn.Position = UDim2.new(0.1, 0, 0, 105)
 WebBtn.Size = UDim2.new(0.8, 0, 0, 40)
 WebBtn.Font = Enum.Font.GothamMedium
-WebBtn.Text = "Get Key from Portal"
+WebBtn.Text = "Copy Key Portal URL"
 WebBtn.TextColor3 = Color3.fromRGB(168, 85, 247)
 WebBtn.TextSize = 13
 Instance.new("UICorner", WebBtn).CornerRadius = UDim.new(0, 8)
@@ -206,10 +217,10 @@ Instance.new("UICorner", WebBtn).CornerRadius = UDim.new(0, 8)
 WebBtn.MouseButton1Click:Connect(function()
     if setclipboard then
         setclipboard(Config.WebsiteKeyURL)
-        SendNotification("Clipboard", "Portal link copied to clipboard successfully.", 3)
-        WebBtn.Text = "Portal Link Copied!"
+        SendNotification("Clipboard", "Portal link copied successfully.", 3)
+        WebBtn.Text = "Portal URL Copied!"
         task.wait(2)
-        WebBtn.Text = "Get Key from Portal"
+        WebBtn.Text = "Copy Key Portal URL"
     else
         SendNotification("Error", "Executor lacks setclipboard capability.", 3)
     end
@@ -227,19 +238,13 @@ KeyBox.TextColor3 = Color3.fromRGB(255, 255, 255)
 KeyBox.TextSize = 13
 Instance.new("UICorner", KeyBox).CornerRadius = UDim.new(0, 8)
 
--- Auto-fill saved key if available
-local savedKey = LoadSavedKey()
-if savedKey then
-    KeyBox.Text = savedKey
-end
-
 local SubmitKeyBtn = Instance.new("TextButton")
 SubmitKeyBtn.Parent = KeyFrame
 SubmitKeyBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
 SubmitKeyBtn.Position = UDim2.new(0.1, 0, 0, 215)
 SubmitKeyBtn.Size = UDim2.new(0.8, 0, 0, 42)
 SubmitKeyBtn.Font = Enum.Font.GothamBold
-SubmitKeyBtn.Text = "Verify & Initialize"
+SubmitKeyBtn.Text = "Verify & Auto-Execute"
 SubmitKeyBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
 SubmitKeyBtn.TextSize = 14
 Instance.new("UICorner", SubmitKeyBtn).CornerRadius = UDim.new(0, 8)
@@ -254,30 +259,33 @@ local function LaunchMainHub()
     TweenService:Create(KeyFrame, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
     task.wait(0.3)
     KeySystemGUI:Destroy()
-    SendNotification("Ken Hub", "Authentication confirmed. Welcome back!", 3)
+    SendNotification("Ken Hub", "Key verified successfully. Auto-executing script features...", 3)
+    LoadMainUI()
 end
 
--- Instant bypass check if saved key is valid format
+-- Check if valid unexpired saved key exists on startup -> bypasses key window and auto-executes immediately
+local savedKey = LoadSavedKey()
 if savedKey and string.sub(savedKey, 1, 7) == "KENHUB-" and string.sub(savedKey, -4) == "-24H" then
+    KeySystemGUI:Destroy()
     task.spawn(LaunchMainHub)
+else
+    SubmitKeyBtn.MouseButton1Click:Connect(function()
+        local text = KeyBox.Text
+        if string.sub(text, 1, 7) == "KENHUB-" and string.sub(text, -4) == "-24H" then
+            SaveSavedKey(text)
+            LaunchMainHub()
+        else
+            SubmitKeyBtn.Text = "Invalid Token Format!"
+            SubmitKeyBtn.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
+            task.wait(1.5)
+            SubmitKeyBtn.Text = "Verify & Auto-Execute"
+            SubmitKeyBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
+        end
+    end)
 end
 
-SubmitKeyBtn.MouseButton1Click:Connect(function()
-    local text = KeyBox.Text
-    if string.sub(text, 1, 7) == "KENHUB-" and string.sub(text, -4) == "-24H" then
-        SaveSavedKey(text)
-        LaunchMainHub()
-    else
-        SubmitKeyBtn.Text = "Invalid Token Format!"
-        SubmitKeyBtn.BackgroundColor3 = Color3.fromRGB(220, 80, 80)
-        task.wait(1.5)
-        SubmitKeyBtn.Text = "Verify & Initialize"
-        SubmitKeyBtn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
-    end
-end)
-
--- Main UI Modern Architecture
-local function LoadMainUI()
+-- Main UI Modern Architecture Definition
+LoadMainUI = function()
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "KenHubMainUI"
     ScreenGui.Parent = CoreGui
@@ -381,8 +389,8 @@ local function LoadMainUI()
         FloatingPill.Visible = false
     end)
 
-    -- Draggable functionality for main interface window & floating icon
-    local draggingMain, dragInputMain, dragStartMain, startPosMain
+    -- Draggable functionality for main interface window
+    local draggingMain, dragStartMain, startPosMain
     TopBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             draggingMain = true
@@ -590,7 +598,7 @@ local function LoadMainUI()
     infoText.Position = UDim2.new(0, 14, 0, 12)
     infoText.Size = UDim2.new(1, -28, 1, -24)
     infoText.Font = Enum.Font.Gotham
-    infoText.Text = "Ken Hub Next-Gen Premium Edition.\n\n• Version: 3.0 Refined\n• Status: Active & Secured\n• Architecture: Modular Engine\n• Support Community: f8WZ6yJxRD"
+    infoText.Text = "Ken Hub Next-Gen Premium Edition.\n\n• Version: 3.0 Key-Integrated\n• Status: Active & Secured\n• Portal Link: " .. Config.WebsiteKeyURL
     infoText.TextColor3 = Color3.fromRGB(160, 160, 175)
     infoText.TextSize = 12
     infoText.TextXAlignment = Enum.TextXAlignment.Left
@@ -654,7 +662,6 @@ local function LoadMainUI()
 
     AddCreditCard("Jinwoo", "Lead Developer / Architect")
     AddCreditCard("KENzoro", "Quality Assurance & Testing")
-    AddCreditCard("Ayla", "UI / UX Designer")
 end
 
 -- Optimized Cached NPC Sweeper Engine
@@ -743,11 +750,4 @@ RunService.RenderStepped:Connect(function()
     if targetHead then
         Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
     end
-end)
-
-task.spawn(function()
-    while not getgenv().VerifiedPassed do
-        task.wait(0.2)
-    end
-    LoadMainUI()
 end)
