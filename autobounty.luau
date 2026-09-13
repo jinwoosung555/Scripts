@@ -1,98 +1,59 @@
 --[========================================================================--
---     KEN HUB — NEXUS AI / AUTO BOUNTY EXTENSION v6.1 (WITH DAMAGE)        --
---         Advanced Smart-Targeting, Safezone Escapes & Damage Remotes      --
+--   KEN HUB — ULTIMATE ALL-IN-ONE AUTO BOUNTY ENGINE (v11.0)              --
+--   Native Combat Framework Hook, Fast Attack, & Auto Server Hop          --
 --[========================================================================--
 
 local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local TweenService = game:GetService("TweenService")
-local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local RunService = game:GetService("RunService")
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Comprehensive Nexus AI & Auto Bounty Config Setup
-getgenv().NexusBountyConfig = {
-    ["Team"] = "Pirates", -- Pirates / Marines
-    ["AutoBounty"] = true,
-    ["SafeZone"] = {
-        ["Enable"] = true,
-        ["LowHealth"] = 3500,
-        ["TeleportY"] = 600,
-    },
-    ["Skip"] = {
-        ["V4"] = true,
-        ["LowHealth"] = true,
-    },
-    ["Weapons"] = {
-        ["Melee"] = { ["Enable"] = true, ["Delay"] = 1.2 },
-        ["Sword"] = { ["Enable"] = true, ["Delay"] = 1.0 },
-        ["Blox Fruit"] = { ["Enable"] = true, ["Delay"] = 1.5 }
-    },
-    ["ChatSpam"] = {
-        ["Enabled"] = false,
-        ["List"] = {"Ken Hub Nexus AI > All", "Too Easy Bounty!"},
-        ["Delay"] = 10
-    }
+-- Global Configuration Settings
+local Config = {
+    ServerHopWhenNoTargets = true,
+    SafeZoneHealth = 2000,
+    SafeZoneY = 600,
+    FastAttackSpeed = 0.05
 }
 
--- Notification Helper
-local NotifGui = Instance.new("ScreenGui")
-NotifGui.Name = "NexusAI_Notifications"
-NotifGui.ResetOnSpawn = false
-pcall(function() NotifGui.Parent = CoreGui end)
+-- Blox Fruits Native Combat Framework Hook
+local CombatController = nil
+pcall(function()
+    for _, v in ipairs(getgc(true)) do
+        if type(v) == "table" and rawget(v, "activeController") then
+            CombatController = v.activeController
+            break
+        end
+    end
+end)
 
-local function SendNexusNotif(title, text)
+-- Server Hopping Utility
+local function ServerHop()
+    task.wait(1.5)
     pcall(function()
-        local f = Instance.new("Frame")
-        f.Size = UDim2.new(0, 300, 0, 55)
-        f.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-        f.Parent = NotifGui
-        Instance.new("UICorner", f).CornerRadius = UDim.new(0, 6)
-        
-        local str = Instance.new("UIStroke")
-        str.Color = Color3.fromRGB(168, 85, 247)
-        str.Transparency = 0.3
-        str.Parent = f
-
-        local t = Instance.new("TextLabel")
-        t.Size = UDim2.new(1, -15, 0, 20)
-        t.Position = UDim2.new(0, 10, 0, 6)
-        t.BackgroundTransparency = 1
-        t.Font = Enum.Font.GothamBold
-        t.Text = title
-        t.TextColor3 = Color3.fromRGB(255, 255, 255)
-        t.TextSize = 12
-        t.TextXAlignment = Enum.TextXAlignment.Left
-        t.Parent = f
-
-        local m = Instance.new("TextLabel")
-        m.Size = UDim2.new(1, -15, 0, 22)
-        m.Position = UDim2.new(0, 10, 0, 26)
-        m.BackgroundTransparency = 1
-        m.Font = Enum.Font.Gotham
-        m.Text = text
-        m.TextColor3 = Color3.fromRGB(170, 170, 185)
-        m.TextSize = 11
-        m.TextXAlignment = Enum.TextXAlignment.Left
-        m.Parent = f
-
-        task.delay(3, function()
-            if f then f:Destroy() end
-        end)
+        local servers = {}
+        local req = game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100")
+        local body = HttpService:JSONDecode(req)
+        if body and body.data then
+            for _, s in ipairs(body.data) do
+                if type(s) == "table" and s.maxPlayers and s.playing and s.playing < s.maxPlayers and s.id ~= game.JobId then
+                    table.insert(servers, s.id)
+                end
+            end
+        end
+        if #servers > 0 then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], LocalPlayer)
+        else
+            TeleportService:Teleport(game.PlaceId, LocalPlayer)
+        end
     end)
 end
 
-SendNexusNotif("Nexus AI Engine", "Auto Bounty framework with Damage Remotes injected & active.")
-
--- Blox Fruits Combat Remote Finder (Ensures direct damage application)
-local function GetCombatRemote()
-    local remotes = ReplicatedStorage:FindFirstChild("Remotes") or ReplicatedStorage
-    return remotes:FindFirstChild("Validator") or remotes:FindFirstChild("CommF_") or remotes:FindFirstChild("RegisterHit")
-end
-
--- Core AI Target Finder Loop
+-- Closest Player Target Finder
 local function GetClosestTarget()
     local target = nil
     local shortestDist = math.huge
@@ -117,48 +78,55 @@ local function GetClosestTarget()
     return target
 end
 
--- Automated Bounty Loop Worker with Damage Routing
+-- Fast Attack & Combat Execution Loop
 task.spawn(function()
-    while task.wait(0.3) do
+    while task.wait(Config.FastAttackSpeed) do
         pcall(function()
-            if getgenv().NexusBountyConfig.AutoBounty then
-                local char = LocalPlayer.Character
-                local root = char and char:FindFirstChild("HumanoidRootPart")
-                local hum = char and char:FindFirstChild("Humanoid")
-                
-                if root and hum then
-                    -- Safety Escape Check (Low Health Logic)
-                    if getgenv().NexusBountyConfig.SafeZone.Enable and hum.Health <= getgenv().NexusBountyConfig.SafeZone.LowHealth then
-                        root.CFrame = root.CFrame + Vector3.new(0, getgenv().NexusBountyConfig.SafeZone.TeleportY, 0)
-                        task.wait(4) -- Wait to regenerate health
-                        return
-                    end
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChild("Humanoid")
+            
+            if root and hum then
+                -- Safezone low health emergency escape
+                if hum.Health <= Config.SafeZoneHealth then
+                    root.CFrame = root.CFrame + Vector3.new(0, Config.SafeZoneY, 0)
+                    task.wait(5)
+                    return
+                end
 
-                    -- Target Tracking & Combat Pursuit
-                    local targetPlayer = GetClosestTarget()
-                    if targetPlayer and targetPlayer.Character then
-                        local tRoot = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
-                        local tHum = targetPlayer.Character:FindFirstChild("Humanoid")
+                local target = GetClosestTarget()
+                if target and target.Character then
+                    local tRoot = target.Character:FindFirstChild("HumanoidRootPart")
+                    local tHum = target.Character:FindFirstChild("Humanoid")
+                    
+                    if tRoot and tHum and tHum.Health > 0 then
+                        -- Maintain optimal PvP attack position
+                        root.CFrame = tRoot.CFrame * CFrame.new(0, 6, 2)
+                        Camera.CFrame = CFrame.new(Camera.CFrame.Position, tRoot.Position)
                         
-                        if tRoot and tHum and tHum.Health > 0 then
-                            -- Smooth positioning above/behind target to simulate high-tier PvP movement
-                            root.CFrame = tRoot.CFrame * CFrame.new(0, 12, 6)
+                        -- Equip and activate active tool weapon
+                        local tool = char:FindFirstChildOfClass("Tool")
+                        if tool then
+                            if tool.Parent ~= char then
+                                tool.Parent = char
+                            end
+                            tool:Activate()
                             
-                            -- Face target camera angle
-                            Camera.CFrame = CFrame.new(Camera.CFrame.Position, tRoot.Position)
-                            
-                            -- Simulate tool activation & trigger direct damage remote
-                            local tool = char:FindFirstChildOfClass("Tool")
-                            if tool then
-                                tool:Activate()
-                                local remote = GetCombatRemote()
-                                if remote and remote:IsA("RemoteEvent") then
-                                    pcall(function()
-                                        remote:FireServer(tRoot.Position, tool)
-                                    end)
-                                end
+                            -- Force trigger framework attack instance if available
+                            if CombatController and CombatController.attack then
+                                pcall(function()
+                                    CombatController:attack()
+                                end)
                             end
                         end
+                    else
+                        if Config.ServerHopWhenNoTargets then
+                            ServerHop()
+                        end
+                    end
+                else
+                    if Config.ServerHopWhenNoTargets then
+                        ServerHop()
                     end
                 end
             end
@@ -166,20 +134,5 @@ task.spawn(function()
     end
 end)
 
--- Chat Spammer Module
-task.spawn(function()
-    while task.wait(getgenv().NexusBountyConfig.ChatSpam.Delay) do
-        pcall(function()
-            if getgenv().NexusBountyConfig.ChatSpam.Enabled and getgenv().NexusBountyConfig.AutoBounty then
-                local list = getgenv().NexusBountyConfig.ChatSpam.List
-                local msg = list[math.random(1, #list)]
-                local chatRemote = ReplicatedStorage:FindFirstChild("DefaultChatSystemChatEvents")
-                if chatRemote and chatRemote:FindFirstChild("SayMessageRequest") then
-                    chatRemote.SayMessageRequest:FireServer(msg, "All")
-                end
-            end
-        end)
-    end
-end)
 
 
