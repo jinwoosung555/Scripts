@@ -1,5 +1,5 @@
 -- ============================================
--- KENHUB - ADVANCED AUTO BOUNTY & M1 AURA
+-- KENHUB - ADVANCED AUTO BOUNTY & DAMAGE FIX v3
 -- Build: 2026.3.30
 -- ============================================
 
@@ -12,23 +12,63 @@ local TeleportService = game:GetService("TeleportService")
 local VirtualUser = game:GetService("VirtualUser")
 
 local lp = Players.LocalPlayer
+local camera = workspace.CurrentCamera
 
 local KenHubConfig = {
     AutoBounty = false,
-    AutoKillAura = false,
+    AutoKillAura = true,
     AntiAdminLeave = true,
-    FruitMode = "T-Rex",
-    ServerHopOnLowPlayers = false,
     AutoHaki = true,
-    BringMobsOrPlayers = true,
+    EquipBestWeapon = true,
 }
 
--- Safe Click / M1 Function for Fruit/Melee Spam
-local function simulateClick()
+-- Ensure Character Has Buso Haki Active
+local function verifyHaki()
     pcall(function()
-        VirtualUser:Button1Down(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
-        task.wait(0.03)
-        VirtualUser:Button1Up(Vector2.new(0,0), workspace.CurrentCamera.CFrame)
+        local char = lp.Character
+        if char and KenHubConfig.AutoHaki then
+            if not char:FindFirstChild("HasBuso") then
+                local args = { [1] = "Buso" }
+                local remotes = ReplicatedStorage:FindFirstChild("Remotes")
+                if remotes and remotes:FindFirstChild("CommF_") then
+                    remotes.CommF_:InvokeServer(unpack(args))
+                end
+            end
+        end
+    end)
+end
+
+-- Auto Equip Combat/Fruit Tool from Backpack
+local function equipTool()
+    pcall(function()
+        local char = lp.Character
+        local backpack = lp.Backpack
+        if not char or not backpack then return end
+        
+        -- Look for Melee, Blox Fruit, or Sword
+        for _, tool in ipairs(backpack:GetChildren()) do
+            if tool:IsA("Tool") and (tool.ToolTip == "Blox Fruit" or tool.ToolTip == "Melee" or tool.ToolTip == "Sword") then
+                if not char:FindFirstChild(tool.Name) then
+                    local humanoid = char:FindFirstChildOfClass("Humanoid")
+                    if humanoid then
+                        humanoid:EquipTool(tool)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+-- Force M1 / Click Attack Packet Dispatcher
+local function sendAttackInput(targetPos)
+    pcall(function()
+        -- Lock camera onto target position for proper hit registration
+        camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
+        
+        -- Simulate Click / M1 Input for Fruit/Combat
+        VirtualUser:Button1Down(Vector2.new(100, 100), camera.CFrame)
+        task.wait(0.04)
+        VirtualUser:Button1Up(Vector2.new(100, 100), camera.CFrame)
     end)
 end
 
@@ -38,8 +78,8 @@ local function smoothTeleport(targetCFrame)
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
         local distance = (hrp.Position - targetCFrame.Position).Magnitude
-        local speed = 350 -- Studs per second
-        local time = math.clamp(distance / speed, 0.05, 1.5)
+        local speed = 300 
+        local time = math.clamp(distance / speed, 0.04, 1.2)
         
         local tweenInfo = TweenInfo.new(time, Enum.EasingStyle.Linear)
         local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
@@ -71,20 +111,26 @@ local function getNearestTarget()
     return target
 end
 
--- Main Automation Loop
+-- Main Automation Execution Loop
 task.spawn(function()
     while true do
-        task.wait(0.2)
+        task.wait(0.15)
         pcall(function()
             if KenHubConfig.AutoBounty then
+                verifyHaki()
+                if KenHubConfig.EquipBestWeapon then
+                    equipTool()
+                end
+
                 local targetChar = getNearestTarget()
                 if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
                     local enemyRoot = targetChar.HumanoidRootPart
-                    -- Teleport right above/behind target to safely execute attacks
-                    smoothTeleport(enemyRoot.CFrame * CFrame.new(0, 3, 3))
+                    
+                    -- Orbit slightly close to target to make M1 hitboxes connect
+                    smoothTeleport(enemyRoot.CFrame * CFrame.new(0, 2, 2.5))
                     
                     if KenHubConfig.AutoKillAura then
-                        simulateClick()
+                        sendAttackInput(enemyRoot.Position)
                     end
                 end
             end
@@ -115,7 +161,6 @@ local function initKenHubUI()
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = CoreGui
 
-    -- Main Frame
     local mainFrame = Instance.new("Frame")
     mainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
     mainFrame.Size = UDim2.new(0, 520, 0, 380)
@@ -123,22 +168,18 @@ local function initKenHubUI()
     mainFrame.Active = true
     mainFrame.Parent = screenGui
     
-    local corner = Instance.new("UICorner", mainFrame)
-    corner.CornerRadius = UDim.new(0, 12)
-    local stroke = Instance.new("UIStroke", mainFrame)
-    stroke.Color = Color3.fromRGB(120, 80, 200)
+    Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
+    Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(120, 80, 200)
 
-    -- Make Main Frame Draggable (Desktop and Touch)
-    local dragging, dragInput, dragStart, startPos
+    -- Draggable Main Frame Logic
+    local dragging, dragStart, startPos
     mainFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStart = input.Position
             startPos = mainFrame.Position
             input.Changed:Connect(function()
-                if input.UserInputState == Enum.UserInputState.End then
-                    dragging = false
-                end
+                if input.UserInputState == Enum.UserInputState.End then dragging = false end
             end)
         end
     end)
@@ -179,7 +220,7 @@ local function initKenHubUI()
     Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 12)
 
     local title = Instance.new("TextLabel", topBar)
-    title.Text = "  KENHUB <font color='#aa82ff'>[AUTO BOUNTY v2]</font>"
+    title.Text = "  KENHUB <font color='#aa82ff'>[FIXED DAMAGE v3]</font>"
     title.RichText = true
     title.Font = Enum.Font.GothamBold
     title.TextColor3 = Color3.fromRGB(245, 245, 250)
@@ -216,6 +257,8 @@ local function initKenHubUI()
         local btn = Instance.new("TextButton", contentArea)
         btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
         btn.Size = UDim2.new(1, 0, 0, 40)
+        btn.Text = "  " + name
+        -- fixing direct string concatenation for Lua
         btn.Text = "  " .. name
         btn.Font = Enum.Font.GothamMedium
         btn.TextColor3 = Color3.fromRGB(230, 230, 240)
@@ -238,11 +281,11 @@ local function initKenHubUI()
     end
 
     addFeatureToggle("Auto Bounty Farm (Teleport & Target)", "AutoBounty", function(state) end)
-    addFeatureToggle("Fast M1 / Fruit Attack Spam Aura", "AutoKillAura", function(state) end)
+    addFeatureToggle("Fast M1 / Fruit Attack Damage Aura", "AutoKillAura", function(state) end)
     addFeatureToggle("Auto Constant Buso Haki", "AutoHaki", function(state) end)
+    addFeatureToggle("Auto Equip Fruit/Weapon Tool", "EquipBestWeapon", function(state) end)
     addFeatureToggle("Anti-Admin (Auto Leave on Staff Join)", "AntiAdminLeave", function(state) end)
-    addFeatureToggle("Auto Server Hop on Low Player Count", "ServerHopOnLowPlayers", function(state) end)
 end
 
 initKenHubUI()
-print("[KenHub] Fully updated with floating 'K' minimization button & draggable UI!")
+print("[KenHub] Damage injection and click orientation mechanics loaded successfully!")
