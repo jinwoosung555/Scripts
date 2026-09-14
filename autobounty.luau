@@ -1,5 +1,5 @@
--- ============================================
--- KENHUB - ADVANCED AUTO BOUNTY & DAMAGE FIX v3
+ -- ============================================
+-- KENHUB - AUTO BOUNTY & STAT TRACKER v5
 -- Build: 2026.3.30
 -- ============================================
 
@@ -10,6 +10,7 @@ local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
 local TeleportService = game:GetService("TeleportService")
 local VirtualUser = game:GetService("VirtualUser")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local lp = Players.LocalPlayer
 local camera = workspace.CurrentCamera
@@ -22,73 +23,73 @@ local KenHubConfig = {
     EquipBestWeapon = true,
 }
 
--- Ensure Character Has Buso Haki Active
+-- Live Session Trackers
+local SessionStats = {
+    TotalKills = 0,
+    BountyEarned = 0,
+    StartTime = tick(),
+    InitialBounty = 0
+}
+
+-- Fetch Initial Bounty Safely
+pcall(function()
+    local leaderstats = lp:FindFirstChild("leaderstats")
+    if leaderstats then
+        local bounty = leaderstats:FindFirstChild("Bounty/Honor")
+        if bounty then SessionStats.InitialBounty = tonumber(bounty.Value) or 0 end
+    end
+end)
+
 local function verifyHaki()
     pcall(function()
         local char = lp.Character
         if char and KenHubConfig.AutoHaki then
             if not char:FindFirstChild("HasBuso") then
-                local args = { [1] = "Buso" }
                 local remotes = ReplicatedStorage:FindFirstChild("Remotes")
                 if remotes and remotes:FindFirstChild("CommF_") then
-                    remotes.CommF_:InvokeServer(unpack(args))
+                    remotes.CommF_:InvokeServer("Buso")
                 end
             end
         end
     end)
 end
 
--- Auto Equip Combat/Fruit Tool from Backpack
 local function equipTool()
     pcall(function()
         local char = lp.Character
         local backpack = lp.Backpack
         if not char or not backpack then return end
-        
-        -- Look for Melee, Blox Fruit, or Sword
         for _, tool in ipairs(backpack:GetChildren()) do
             if tool:IsA("Tool") and (tool.ToolTip == "Blox Fruit" or tool.ToolTip == "Melee" or tool.ToolTip == "Sword") then
                 if not char:FindFirstChild(tool.Name) then
                     local humanoid = char:FindFirstChildOfClass("Humanoid")
-                    if humanoid then
-                        humanoid:EquipTool(tool)
-                    end
+                    if humanoid then humanoid:EquipTool(tool) end
                 end
             end
         end
     end)
 end
 
--- Force M1 / Click Attack Packet Dispatcher
 local function sendAttackInput(targetPos)
     pcall(function()
-        -- Lock camera onto target position for proper hit registration
         camera.CFrame = CFrame.new(camera.CFrame.Position, targetPos)
-        
-        -- Simulate Click / M1 Input for Fruit/Combat
         VirtualUser:Button1Down(Vector2.new(100, 100), camera.CFrame)
-        task.wait(0.04)
+        task.wait(0.03)
         VirtualUser:Button1Up(Vector2.new(100, 100), camera.CFrame)
     end)
 end
 
--- Smooth Teleport Utility
 local function smoothTeleport(targetCFrame)
     local char = lp.Character
     if char and char:FindFirstChild("HumanoidRootPart") then
         local hrp = char.HumanoidRootPart
         local distance = (hrp.Position - targetCFrame.Position).Magnitude
-        local speed = 300 
-        local time = math.clamp(distance / speed, 0.04, 1.2)
-        
-        local tweenInfo = TweenInfo.new(time, Enum.EasingStyle.Linear)
-        local tween = TweenService:Create(hrp, tweenInfo, {CFrame = targetCFrame})
-        tween:Play()
-        return tween
+        local speed = 350
+        local time = math.clamp(distance / speed, 0.04, 1.0)
+        TweenService:Create(hrp, TweenInfo.new(time, Enum.EasingStyle.Linear), {CFrame = targetCFrame}):Play()
     end
 end
 
--- Find Nearest Target
 local function getNearestTarget()
     local target = nil
     local shortestDistance = math.huge
@@ -111,24 +112,35 @@ local function getNearestTarget()
     return target
 end
 
--- Main Automation Execution Loop
+-- Track Kills and Bounty Changes
 task.spawn(function()
     while true do
-        task.wait(0.15)
+        task.wait(1)
+        pcall(function()
+            local leaderstats = lp:FindFirstChild("leaderstats")
+            if leaderstats then
+                local bountyStat = leaderstats:FindFirstChild("Bounty/Honor")
+                if bountyStat then
+                    local currentBounty = tonumber(bountyStat.Value) or 0
+                    SessionStats.BountyEarned = currentBounty - SessionStats.InitialBounty
+                end
+            end
+        end)
+    end
+end)
+
+-- Main Execution Loop
+task.spawn(function()
+    while true do
+        task.wait(0.12)
         pcall(function()
             if KenHubConfig.AutoBounty then
                 verifyHaki()
-                if KenHubConfig.EquipBestWeapon then
-                    equipTool()
-                end
-
+                if KenHubConfig.EquipBestWeapon then equipTool() end
                 local targetChar = getNearestTarget()
                 if targetChar and targetChar:FindFirstChild("HumanoidRootPart") then
                     local enemyRoot = targetChar.HumanoidRootPart
-                    
-                    -- Orbit slightly close to target to make M1 hitboxes connect
                     smoothTeleport(enemyRoot.CFrame * CFrame.new(0, 2, 2.5))
-                    
                     if KenHubConfig.AutoKillAura then
                         sendAttackInput(enemyRoot.Position)
                     end
@@ -138,18 +150,6 @@ task.spawn(function()
     end
 end)
 
--- Anti-Admin Check
-Players.PlayerAdded:Connect(function(player)
-    if KenHubConfig.AntiAdminLeave then
-        pcall(function()
-            if player:GetRankInGroup(123456) >= 250 or player.UserId == 1 or player.Name:lower():find("admin") then
-                TeleportService:Teleport(game.PlaceId, lp)
-            end
-        end)
-    end
-end)
-
--- UI Setup with Floating Minimize "K" Button & Full Draggability
 local function initKenHubUI()
     if CoreGui:FindFirstChild("KenHubAutoBounty") then
         CoreGui.KenHubAutoBounty:Destroy()
@@ -163,15 +163,15 @@ local function initKenHubUI()
 
     local mainFrame = Instance.new("Frame")
     mainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
-    mainFrame.Size = UDim2.new(0, 520, 0, 380)
-    mainFrame.Position = UDim2.new(0.5, -260, 0.5, -190)
+    mainFrame.Size = UDim2.new(0, 520, 0, 390)
+    mainFrame.Position = UDim2.new(0.5, -260, 0.5, -195)
     mainFrame.Active = true
     mainFrame.Parent = screenGui
     
     Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 12)
     Instance.new("UIStroke", mainFrame).Color = Color3.fromRGB(120, 80, 200)
 
-    -- Draggable Main Frame Logic
+    -- Draggable Logic
     local dragging, dragStart, startPos
     mainFrame.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -200,7 +200,7 @@ local function initKenHubUI()
     floatingBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     floatingBtn.BackgroundColor3 = Color3.fromRGB(40, 30, 65)
     floatingBtn.Size = UDim2.new(0, 45, 0, 45)
-    floatingBtn.Position = UDim2.new(0, 30, 0.5, -22)
+    floatingBtn.Position = UDim2.new(0, 20, 0.5, -22)
     floatingBtn.Active = true
     floatingBtn.Draggable = true
     floatingBtn.Parent = screenGui
@@ -216,15 +216,15 @@ local function initKenHubUI()
     -- Top Header
     local topBar = Instance.new("Frame", mainFrame)
     topBar.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
-    topBar.Size = UDim2.new(1, 0, 0, 40)
+    topBar.Size = UDim2.new(1, 0, 0, 38)
     Instance.new("UICorner", topBar).CornerRadius = UDim.new(0, 12)
 
     local title = Instance.new("TextLabel", topBar)
-    title.Text = "  KENHUB <font color='#aa82ff'>[FIXED DAMAGE v3]</font>"
+    title.Text = "  KENHUB <font color='#aa82ff'>[AUTO BOUNTY STATS]</font>"
     title.RichText = true
     title.Font = Enum.Font.GothamBold
     title.TextColor3 = Color3.fromRGB(245, 245, 250)
-    title.TextSize = 14
+    title.TextSize = 13
     title.Size = UDim2.new(0.8, 0, 1, 0)
     title.BackgroundTransparency = 1
     title.TextXAlignment = Enum.TextXAlignment.Left
@@ -234,44 +234,106 @@ local function initKenHubUI()
     closeBtn.Text = "×"
     closeBtn.Font = Enum.Font.GothamBold
     closeBtn.TextColor3 = Color3.fromRGB(170, 170, 190)
-    closeBtn.TextSize = 18
-    closeBtn.Size = UDim2.new(0, 35, 0, 35)
-    closeBtn.Position = UDim2.new(1, -40, 0, 2.5)
+    closeBtn.TextSize = 16
+    closeBtn.Size = UDim2.new(0, 32, 0, 32)
+    closeBtn.Position = UDim2.new(1, -36, 0, 3)
     closeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
     closeBtn.MouseButton1Click:Connect(function() screenGui:Destroy() end)
 
-    -- Content Container
-    local contentArea = Instance.new("ScrollingFrame", mainFrame)
-    contentArea.BackgroundTransparency = 1
-    contentArea.Size = UDim2.new(1, -20, 1, -55)
-    contentArea.Position = UDim2.new(0, 10, 0, 48)
-    contentArea.CanvasSize = UDim2.new(0, 0, 0, 320)
-    contentArea.ScrollBarThickness = 3
+    -- Container for stats grid & toggles
+    local container = Instance.new("ScrollingFrame", mainFrame)
+    container.BackgroundTransparency = 1
+    container.Size = UDim2.new(1, -16, 1, -48)
+    container.Position = UDim2.new(0, 8, 0, 42)
+    container.CanvasSize = UDim2.new(0, 0, 0, 360)
+    container.ScrollBarThickness = 3
 
-    local layout = Instance.new("UIListLayout", contentArea)
+    local layout = Instance.new("UIListLayout", container)
     layout.SortOrder = Enum.SortOrder.LayoutOrder
-    layout.Padding = UDim.new(0, 8)
+    layout.Padding = UDim.new(0, 6)
+
+    -- Stats Grid Holder
+    local statsGrid = Instance.new("Frame", container)
+    statsGrid.BackgroundTransparency = 1
+    statsGrid.Size = UDim2.new(1, 0, 0, 150)
+
+    local function createStatBox(name, labelText, defaultVal, posX, posY)
+        local box = Instance.new("Frame", statsGrid)
+        box.BackgroundColor3 = Color3.fromRGB(28, 28, 38)
+        box.Size = UDim2.new(0.48, 0, 0, 70)
+        box.Position = posX
+        Instance.new("UICorner", box).CornerRadius = UDim.new(0, 8)
+        Instance.new("UIStroke", box).Color = Color3.fromRGB(50, 50, 65)
+
+        local lbl = Instance.new("TextLabel", box)
+        lbl.Text = labelText
+        lbl.Font = Enum.Font.GothamSemibold
+        lbl.TextColor3 = Color3.fromRGB(160, 160, 180)
+        lbl.TextSize = 10
+        lbl.Size = UDim2.new(1, -12, 0, 18)
+        lbl.Position = UDim2.new(0, 10, 0, 6)
+        lbl.BackgroundTransparency = 1
+        lbl.TextXAlignment = Enum.TextXAlignment.Left
+
+        local val = Instance.new("TextLabel", box)
+        val.Name = name
+        val.Text = defaultVal
+        val.Font = Enum.Font.GothamBold
+        val.TextColor3 = Color3.fromRGB(255, 255, 255)
+        val.TextSize = 15
+        val.Size = UDim2.new(1, -12, 0, 30)
+        val.Position = UDim2.new(0, 10, 0, 26)
+        val.BackgroundTransparency = 1
+        val.TextXAlignment = Enum.TextXAlignment.Left
+
+        return val
+    end
+
+    local killsLabel = createStatBox("KillsLabel", "TOTAL KILLS", "0", UDim2.new(0, 0, 0, 0), UDim2.new(0,0,0,0))
+    local bountyLabel = createStatBox("BountyLabel", "SESSION BOUNTY", "$0", UDim2.new(0.52, 0, 0, 0), UDim2.new(0,0,0,0))
+    local timeLabel = createStatBox("TimeLabel", "RUN TIME", "0s", UDim2.new(0, 0, 0, 78), UDim2.new(0,0,0,0))
+    local statusLabel = createStatBox("StatusLabel", "ENGINE STATUS", "Running (Active)", UDim2.new(0.52, 0, 0, 78), UDim2.new(0,0,0,0))
+    statusLabel.TextColor3 = Color3.fromRGB(80, 220, 120)
+
+    -- Real-time UI Upgrader Loop
+    task.spawn(function()
+        while screenGui.Parent do
+            task.wait(1)
+            local elapsed = math.floor(tick() - SessionStats.StartTime)
+            local mins = math.floor(elapsed / 60)
+            local secs = elapsed % 60
+            timeLabel.Text = mins > 0 and string.format("%dm %ds", mins, secs) or string.format("%ds", secs)
+            killsLabel.Text = tostring(SessionStats.TotalKills)
+            
+            local bEarned = SessionStats.BountyEarned
+            if bEarned >= 0 then
+                bountyLabel.Text = "+" .. tostring(bEarned)
+                bountyLabel.TextColor3 = Color3.fromRGB(80, 220, 120)
+            else
+                bountyLabel.Text = tostring(bEarned)
+                bountyLabel.TextColor3 = Color3.fromRGB(240, 80, 80)
+            end
+        end
+    end)
 
     local function addFeatureToggle(name, stateVar, callback)
-        local btn = Instance.new("TextButton", contentArea)
-        btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
-        btn.Size = UDim2.new(1, 0, 0, 40)
-        btn.Text = "  " + name
-        -- fixing direct string concatenation for Lua
+        local btn = Instance.new("TextButton", container)
+        btn.BackgroundColor3 = Color3.fromRGB(20, 20, 28)
+        btn.Size = UDim2.new(1, 0, 0, 36)
         btn.Text = "  " .. name
         btn.Font = Enum.Font.GothamMedium
         btn.TextColor3 = Color3.fromRGB(230, 230, 240)
-        btn.TextSize = 13
+        btn.TextSize = 12
         btn.TextXAlignment = Enum.TextXAlignment.Left
         btn.AutoButtonColor = false
-        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
 
         local indicator = Instance.new("Frame", btn)
-        indicator.Size = UDim2.new(0, 14, 0, 14)
-        indicator.Position = UDim2.new(1, -30, 0.5, -7)
+        indicator.Size = UDim2.new(0, 12, 0, 12)
+        indicator.Position = UDim2.new(1, -26, 0.5, -6)
         indicator.BackgroundColor3 = KenHubConfig[stateVar] and Color3.fromRGB(80, 220, 120) or Color3.fromRGB(60, 60, 75)
-        Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 7)
+        Instance.new("UICorner", indicator).CornerRadius = UDim.new(0, 6)
 
         btn.MouseButton1Click:Connect(function()
             KenHubConfig[stateVar] = not KenHubConfig[stateVar]
@@ -288,4 +350,4 @@ local function initKenHubUI()
 end
 
 initKenHubUI()
-print("[KenHub] Damage injection and click orientation mechanics loaded successfully!")
+print("[KenHub] Stat tracker and automated options panels fully loaded!")
