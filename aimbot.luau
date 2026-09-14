@@ -1,51 +1,100 @@
 --[========================================================================--
---                 KEN HUB — NEXT-GEN PREMIUM EDITION                       --
---        Integrated with Persistent Key System & Auto-Execution Engine     --
+--            KEN HUB & BLOX FRUITS - NEXT-GEN PREMIUM EDITION             --
+--        Integrated with Persistent Key System, Fast Attack & NPCs         --
 --[========================================================================--
 
+if not game:IsLoaded() then game.Loaded:Wait() end
+
 local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
 local RunService = game:GetService("RunService")
 local UserInputService = game:GetService("UserInputService")
+local VirtualUser = game:GetService("VirtualUser")
+local TeleportService = game:GetService("TeleportService")
+local Lighting = game:GetService("Lighting")
 local TweenService = game:GetService("TweenService")
 local CoreGui = game:GetService("CoreGui")
 local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
+local Camera = Workspace.CurrentCamera
 local Mouse = LocalPlayer:GetMouse()
 
--- Configuration & State Registry
+--====================================================--
+-- ADVANCED ANTI-DETECTION & ANTI-KICK CORE
+--====================================================--
+
+local function AntiKick()
+    pcall(function()
+        for _, v in next, getconnections(game:GetService("Players").LocalPlayer.Idled) do
+            v:Disable()
+        end
+    end)
+    
+    pcall(function()
+        local mt = getrawmetatable(game)
+        if mt then
+            local oldNamecall = mt.__namecall
+            setreadonly(mt, false)
+            mt.__namecall = newcclosure(function(self, ...)
+                local method = getnamecallmethod()
+                if method == "Kick" then return end
+                return oldNamecall(self, ...)
+            end)
+            setreadonly(mt, true)
+        end
+    end)
+end
+AntiKick()
+
+--====================================================--
+-- CONFIGURATION & STATE REGISTRY
+--====================================================--
+
 local Config = {
-    PlayerAimbot = false,
+    WebsiteKeyURL = "https://jinwoosung555.github.io/Keyy/",
+    KeyStorageFile = "KenHub_AuthKey_v2.json",
+    
+    AimbotEnabled = false,
     NPCAimbot = false,
-    AimbotDistance = 2500,
-    MaxAimbotDistance = 10000,
-    FOVEnabled = false,
-    FOVSize = 120,
-    MaxFOVSize = 400,
-    FOVColor = Color3.fromRGB(168, 85, 247),
+    AimbotKey = Enum.KeyCode.Q,
+    AimPart = "Head",
+    MaxDistance = 2500,
+    FOV = 120,
+    Smoothness = 1,
+    
+    AutoAttackEnabled = false,
+    FastAttackNPCs = true,
+    AutoAttackRange = 50,
+    AutoAttackDelay = 0.05,
+    
+    ESPEnabled = false,
+    ESPNames = true,
+    ESPDistance = true,
+    ESPHealth = true,
+    
     SpeedBoost = false,
     SpeedValue = 24,
     JumpBoost = false,
     JumpValue = 72,
+    
+    FPSBoostEnabled = false,
     NotificationsEnabled = true,
-    PerformanceMode = false,
-    WebsiteKeyURL = "https://jinwoosung555.github.io/Keyy/",
-    KeyStorageFile = "KenHub_AuthKey_v2.json"
+    
+    UITheme = "Dark"
 }
 
-local CachedNPCs = {}
-local LastCacheUpdate = 0
-local CacheInterval = 2.0
+--====================================================--
+-- PERSISTENT 24-HOUR KEY STORAGE (UNCHANGED KEY SYSTEM)
+--====================================================--
 
--- Persistent 24-Hour Key Storage & Expiration Validator
 local function SaveSavedKey(key)
     if writefile then
-        pcall(function--[[Local Save]]()
+        pcall(function()
             local payload = {
                 Key = key,
                 Timestamp = os.time(),
-                ExpiresAt = os.time() + 86400 -- 24 Hours validity
+                ExpiresAt = os.time() + 86400
             }
             writefile(Config.KeyStorageFile, HttpService:JSONEncode(payload))
         end)
@@ -58,11 +107,9 @@ local function LoadSavedKey()
             return HttpService:JSONDecode(readfile(Config.KeyStorageFile))
         end)
         if success and data and data.Key and data.ExpiresAt then
-            -- Check if current time has passed the 24-hour expiration threshold
             if os.time() < data.ExpiresAt then
                 return data.Key
             else
-                -- Expired: Clean up local storage so it prompts again
                 pcall(function() delfile(Config.KeyStorageFile) end)
             end
         end
@@ -70,16 +117,10 @@ local function LoadSavedKey()
     return nil
 end
 
--- Premium FOV Circle Setup
-local FOVCircle = Drawing.new("Circle")
-FOVCircle.Visible = false
-FOVCircle.Thickness = 1.2
-FOVCircle.NumSides = 90
-FOVCircle.Color = Config.FOVColor
-FOVCircle.Filled = false
-FOVCircle.Transparency = 0.75
+--====================================================--
+-- MODERN NOTIFICATION SYSTEM
+--====================================================--
 
--- Modern Toast Notification Hub
 local NotificationHolder = Instance.new("ScreenGui")
 NotificationHolder.Name = "KenHubNotifications"
 NotificationHolder.Parent = CoreGui
@@ -153,10 +194,12 @@ local function SendNotification(title, message, duration)
     end)
 end
 
--- Main UI Modern Architecture Forward Declaration
-local LoadMainUI
+local LaunchMainHubUI
 
--- Advanced Authentication / Key Gate UI
+--====================================================--
+-- AUTHENTICATION / KEY GATE UI (UNCHANGED LOGIC)
+--====================================================--
+
 local KeySystemGUI = Instance.new("ScreenGui")
 KeySystemGUI.Name = "KenHubKeySystem"
 KeySystemGUI.Parent = CoreGui
@@ -259,11 +302,10 @@ local function LaunchMainHub()
     TweenService:Create(KeyFrame, TweenInfo.new(0.3), {BackgroundTransparency = 1}):Play()
     task.wait(0.3)
     KeySystemGUI:Destroy()
-    SendNotification("Ken Hub", "Key verified successfully. Auto-executing script features...", 3)
-    LoadMainUI()
+    SendNotification("Ken Hub", "Key verified successfully. Initializing combat engine...", 3)
+    LaunchMainHubUI()
 end
 
--- Check if valid unexpired saved key exists on startup -> bypasses key window and auto-executes immediately
 local savedKey = LoadSavedKey()
 if savedKey and string.sub(savedKey, 1, 7) == "KENHUB-" and string.sub(savedKey, -4) == "-24H" then
     KeySystemGUI:Destroy()
@@ -284,8 +326,19 @@ else
     end)
 end
 
--- Main UI Modern Architecture Definition
-LoadMainUI = function()
+--====================================================--
+-- MAIN UI ARCHITECTURE & ENHANCED BUTTONS
+--====================================================--
+
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Thickness = 1.5
+FOVCircle.NumSides = 90
+FOVCircle.Color = Color3.fromRGB(168, 85, 247)
+FOVCircle.Filled = false
+FOVCircle.Transparency = 0.75
+
+LaunchMainHubUI = function()
     local ScreenGui = Instance.new("ScreenGui")
     ScreenGui.Name = "KenHubMainUI"
     ScreenGui.Parent = CoreGui
@@ -296,29 +349,28 @@ LoadMainUI = function()
     MainContainer.Parent = ScreenGui
     MainContainer.BackgroundColor3 = Color3.fromRGB(10, 10, 14)
     MainContainer.BorderSizePixel = 0
-    MainContainer.Position = UDim2.new(0.5, -280, 0.5, -200)
-    MainContainer.Size = UDim2.new(0, 560, 0, 400)
+    MainContainer.Position = UDim2.new(0.5, -290, 0.5, -210)
+    MainContainer.Size = UDim2.new(0, 580, 0, 420)
     MainContainer.BackgroundTransparency = 1
     Instance.new("UICorner", MainContainer).CornerRadius = UDim.new(0, 14)
 
     local MainStroke = Instance.new("UIStroke")
-    MainStroke.Color = Color3.fromRGB(45, 45, 60)
+    MainStroke.Color = Color3.fromRGB(45, 45, 65)
     MainStroke.Transparency = 0.3
     MainStroke.Parent = MainContainer
 
     TweenService:Create(MainContainer, TweenInfo.new(0.45, Enum.EasingStyle.Back, Enum.EasingDirection.Out), {BackgroundTransparency = 0}):Play()
 
-    -- Top Navigation & Header Bar
     local TopBar = Instance.new("Frame")
     TopBar.Parent = MainContainer
-    TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    TopBar.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
     TopBar.BorderSizePixel = 0
     TopBar.Size = UDim2.new(1, 0, 0, 48)
     Instance.new("UICorner", TopBar).CornerRadius = UDim.new(0, 14)
 
     local TopBarFix = Instance.new("Frame")
     TopBarFix.Parent = TopBar
-    TopBarFix.BackgroundColor3 = Color3.fromRGB(15, 15, 20)
+    TopBarFix.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
     TopBarFix.BorderSizePixel = 0
     TopBarFix.Position = UDim2.new(0, 0, 1, -8)
     TopBarFix.Size = UDim2.new(1, 0, 0, 8)
@@ -327,9 +379,9 @@ LoadMainUI = function()
     TitleLabel.Parent = TopBar
     TitleLabel.BackgroundTransparency = 1
     TitleLabel.Position = UDim2.new(0, 16, 0, 0)
-    TitleLabel.Size = UDim2.new(0, 200, 1, 0)
+    TitleLabel.Size = UDim2.new(0, 300, 1, 0)
     TitleLabel.Font = Enum.Font.GothamBold
-    TitleLabel.Text = "Ken Hub  <font color='#a855f7'>v3.0</font>"
+    TitleLabel.Text = "Ken Hub <font color='#a855f7'>v3.0 + Fast Attack</font>"
     TitleLabel.RichText = true
     TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
     TitleLabel.TextSize = 15
@@ -341,7 +393,7 @@ LoadMainUI = function()
     CloseBtn.Position = UDim2.new(1, -42, 0, 2)
     CloseBtn.Size = UDim2.new(0, 38, 1, -2)
     CloseBtn.Font = Enum.Font.GothamBold
-    CloseBtn.Text = "✕"
+    CloseBtn.Text = "X"
     CloseBtn.TextColor3 = Color3.fromRGB(200, 80, 80)
     CloseBtn.TextSize = 14
 
@@ -356,11 +408,10 @@ LoadMainUI = function()
     MinBtn.Position = UDim2.new(1, -80, 0, 2)
     MinBtn.Size = UDim2.new(0, 38, 1, -2)
     MinBtn.Font = Enum.Font.GothamBold
-    MinBtn.Text = "—"
+    MinBtn.Text = "-"
     MinBtn.TextColor3 = Color3.fromRGB(170, 170, 185)
     MinBtn.TextSize = 14
 
-    -- Minimizable Floating Pill UI
     local FloatingPill = Instance.new("TextButton")
     FloatingPill.Name = "FloatingMinimized"
     FloatingPill.Parent = ScreenGui
@@ -389,7 +440,6 @@ LoadMainUI = function()
         FloatingPill.Visible = false
     end)
 
-    -- Draggable functionality for main interface window
     local draggingMain, dragStartMain, startPosMain
     TopBar.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -411,18 +461,17 @@ LoadMainUI = function()
         end
     end)
 
-    -- Sidebar Navigation Setup
     local Sidebar = Instance.new("Frame")
     Sidebar.Parent = MainContainer
     Sidebar.BackgroundTransparency = 1
     Sidebar.Position = UDim2.new(0, 0, 0, 54)
-    Sidebar.Size = UDim2.new(0, 145, 1, -54)
+    Sidebar.Size = UDim2.new(0, 150, 1, -54)
 
     local TabContainer = Instance.new("Frame")
     TabContainer.Parent = MainContainer
     TabContainer.BackgroundTransparency = 1
-    TabContainer.Position = UDim2.new(0, 155, 0, 58)
-    TabContainer.Size = UDim2.new(0, 395, 1, -68)
+    TabContainer.Position = UDim2.new(0, 160, 0, 58)
+    TabContainer.Size = UDim2.new(0, 410, 1, -68)
 
     local TabButtons = {}
     local TabPanels = {}
@@ -430,10 +479,10 @@ LoadMainUI = function()
     local function CreateTab(name, index)
         local tabBtn = Instance.new("TextButton")
         tabBtn.Parent = Sidebar
-        tabBtn.BackgroundColor3 = Color3.fromRGB(22, 22, 32)
+        tabBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 35)
         tabBtn.BackgroundTransparency = 1
-        tabBtn.Position = UDim2.new(0, 10, 0, (index - 1) * 40)
-        tabBtn.Size = UDim2.new(0, 125, 0, 34)
+        tabBtn.Position = UDim2.new(0, 10, 0, (index - 1) * 42)
+        tabBtn.Size = UDim2.new(0, 130, 0, 36)
         tabBtn.Font = Enum.Font.GothamMedium
         tabBtn.Text = "   " .. name
         tabBtn.TextColor3 = Color3.fromRGB(150, 150, 165)
@@ -445,7 +494,7 @@ LoadMainUI = function()
         panel.Parent = TabContainer
         panel.BackgroundTransparency = 1
         panel.Size = UDim2.new(1, 0, 1, 0)
-        panel.CanvasSize = UDim2.new(0, 0, 0, 480)
+        panel.CanvasSize = UDim2.new(0, 0, 0, 520)
         panel.ScrollBarThickness = 3
         panel.ScrollBarImageColor3 = Color3.fromRGB(168, 85, 247)
         panel.Visible = false
@@ -481,10 +530,10 @@ LoadMainUI = function()
     end
 
     local HomeTab = CreateTab("Home", 1)
-    local AimTab = CreateTab("Combat", 2)
-    local MovementTab = CreateTab("Movement", 3)
-    local SettingsTab = CreateTab("Settings", 4)
-    local CreditsTab = CreateTab("Credits", 5)
+    local CombatTab = CreateTab("Combat", 2)
+    local ESPTab = CreateTab("ESP & Visuals", 3)
+    local MovementTab = CreateTab("Movement", 4)
+    local SettingsTab = CreateTab("Settings", 5)
 
     local function AddHeader(parent, text)
         local lbl = Instance.new("TextLabel")
@@ -502,10 +551,10 @@ LoadMainUI = function()
         local btn = Instance.new("TextButton")
         btn.Parent = parent
         btn.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-        btn.Size = UDim2.new(1, -6, 0, 38)
+        btn.Size = UDim2.new(1, -6, 0, 40)
         btn.Font = Enum.Font.GothamMedium
         btn.Text = "  " .. labelText
-        btn.TextColor3 = Color3.fromRGB(190, 190, 205)
+        btn.TextColor3 = Color3.fromRGB(195, 195, 210)
         btn.TextSize = 13
         btn.TextXAlignment = Enum.TextXAlignment.Left
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
@@ -533,7 +582,7 @@ LoadMainUI = function()
         local container = Instance.new("Frame")
         container.Parent = parent
         container.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-        container.Size = UDim2.new(1, -6, 0, 52)
+        container.Size = UDim2.new(1, -6, 0, 54)
         Instance.new("UICorner", container).CornerRadius = UDim.new(0, 8)
 
         local label = Instance.new("TextLabel")
@@ -543,7 +592,7 @@ LoadMainUI = function()
         label.Size = UDim2.new(1, -24, 0, 18)
         label.Font = Enum.Font.GothamMedium
         label.Text = labelText .. ": " .. default
-        label.TextColor3 = Color3.fromRGB(190, 190, 205)
+        label.TextColor3 = Color3.fromRGB(195, 195, 210)
         label.TextSize = 12
         label.TextXAlignment = Enum.TextXAlignment.Left
 
@@ -585,11 +634,27 @@ LoadMainUI = function()
         end)
     end
 
-    AddHeader(HomeTab, "Overview")
+    local function AddButton(parent, labelText, callback)
+        local btn = Instance.new("TextButton")
+        btn.Parent = parent
+        btn.BackgroundColor3 = Color3.fromRGB(168, 85, 247)
+        btn.Size = UDim2.new(1, -6, 0, 40)
+        btn.Font = Enum.Font.GothamBold
+        btn.Text = labelText
+        btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+        btn.TextSize = 13
+        Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 8)
+
+        btn.MouseButton1Click:Connect(function()
+            pcall(callback)
+        end)
+    end
+
+    AddHeader(HomeTab, "Welcome to Ken Hub")
     local infoCard = Instance.new("Frame")
     infoCard.Parent = HomeTab
     infoCard.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-    infoCard.Size = UDim2.new(1, -6, 0, 115)
+    infoCard.Size = UDim2.new(1, -6, 0, 120)
     Instance.new("UICorner", infoCard).CornerRadius = UDim.new(0, 8)
 
     local infoText = Instance.new("TextLabel")
@@ -598,78 +663,91 @@ LoadMainUI = function()
     infoText.Position = UDim2.new(0, 14, 0, 12)
     infoText.Size = UDim2.new(1, -28, 1, -24)
     infoText.Font = Enum.Font.Gotham
-    infoText.Text = "Ken Hub Next-Gen Premium Edition.\n\n• Version: 3.0 Key-Integrated\n• Status: Active & Secured\n• Portal Link: " .. Config.WebsiteKeyURL
+    infoText.Text = "Blox Fruits Combat & Aimbot Edition v3.0\n\n• Anti-Detection Active\n• Fast Attack for Players & NPCs Enabled\n• Portal: " .. Config.WebsiteKeyURL
     infoText.TextColor3 = Color3.fromRGB(160, 160, 175)
     infoText.TextSize = 12
     infoText.TextXAlignment = Enum.TextXAlignment.Left
     infoText.TextYAlignment = Enum.TextYAlignment.Top
 
-    AddHeader(HomeTab, "Preferences")
+    AddHeader(HomeTab, "Notifications")
     AddToggle(HomeTab, "Toast Notifications", Config.NotificationsEnabled, function(state) Config.NotificationsEnabled = state end)
 
-    AddHeader(AimTab, "Target Configuration")
-    AddToggle(AimTab, "Player Aimbot", Config.PlayerAimbot, function(val) Config.PlayerAimbot = val end)
-    AddToggle(AimTab, "NPC Target Aimbot", Config.NPCAimbot, function(val) Config.NPCAimbot = val end)
-    
-    AddHeader(AimTab, "FOV & Range Parameters")
-    AddToggle(AimTab, "FOV Circle Render", Config.FOVEnabled, function(val) Config.FOVEnabled = val end)
-    AddSlider(AimTab, "FOV Size", 10, Config.MaxFOVSize, Config.FOVSize, function(val) Config.FOVSize = val end)
-    AddSlider(AimTab, "Max Range Distance", 100, Config.MaxAimbotDistance, Config.AimbotDistance, function(val) Config.AimbotDistance = val end)
+    AddHeader(CombatTab, "Aimbot Settings")
+    AddToggle(CombatTab, "Enable Player Aimbot", Config.AimbotEnabled, function(val) Config.AimbotEnabled = val end)
+    AddToggle(CombatTab, "Enable NPC Aimbot", Config.NPCAimbot, function(val) Config.NPCAimbot = val end)
+    AddToggle(CombatTab, "FOV Circle Render", false, function(val) FOVCircle.Visible = val end)
+    AddSlider(CombatTab, "FOV Size", 30, 360, Config.FOV, function(val) Config.FOV = val end)
+    AddSlider(CombatTab, "Max Distance", 100, 5000, Config.MaxDistance, function(val) Config.MaxDistance = val end)
+    AddSlider(CombatTab, "Smoothness", 1, 10, Config.Smoothness, function(val) Config.Smoothness = val end)
+
+    AddHeader(CombatTab, "Fast Attack / Auto Attack (Kill Aura)")
+    AddToggle(CombatTab, "Enable Fast Attack / Auto Attack", Config.AutoAttackEnabled, function(val) Config.AutoAttackEnabled = val end)
+    AddToggle(CombatTab, "Include NPCs in Fast Attack", Config.FastAttackNPCs, function(val) Config.FastAttackNPCs = val end)
+    AddSlider(CombatTab, "Attack Range", 10, 100, Config.AutoAttackRange, function(val) Config.AutoAttackRange = val end)
+    AddSlider(CombatTab, "Attack Speed (Delay ms)", 1, 30, 10, function(val) Config.AutoAttackDelay = 1 / (val * 3) end)
+
+    AddHeader(ESPTab, "ESP Configuration")
+    AddToggle(ESPTab, "Enable Player ESP", Config.ESPEnabled, function(val) Config.ESPEnabled = val end)
+    AddToggle(ESPTab, "Show Names", Config.ESPNames, function(val) Config.ESPNames = val end)
+    AddToggle(ESPTab, "Show Distance", Config.ESPDistance, function(val) Config.ESPDistance = val end)
+    AddToggle(ESPTab, "Show Health", Config.ESPHealth, function(val) Config.ESPHealth = val end)
+
+    AddHeader(ESPTab, "Performance")
+    AddToggle(ESPTab, "FPS Boost", Config.FPSBoostEnabled, function(val)
+        Config.FPSBoostEnabled = val
+        if val then
+            Lighting.GlobalShadows = false
+            Lighting.FogEnd = 1e10
+            workspace.Terrain.WaterTransparency = 1
+        else
+            Lighting.GlobalShadows = true
+            Lighting.FogEnd = 1000
+            workspace.Terrain.WaterTransparency = 0
+        end
+    end)
 
     AddHeader(MovementTab, "Player Dynamics")
     AddToggle(MovementTab, "WalkSpeed Booster", Config.SpeedBoost, function(val) Config.SpeedBoost = val end)
-    AddSlider(MovementTab, "WalkSpeed Target", 16, 100, Config.SpeedValue, function(val) Config.SpeedValue = val end)
+    AddSlider(MovementTab, "WalkSpeed Target", 16, 120, Config.SpeedValue, function(val) Config.SpeedValue = val end)
     AddToggle(MovementTab, "JumpPower Booster", Config.JumpBoost, function(val) Config.JumpBoost = val end)
-    AddSlider(MovementTab, "JumpPower Target", 50, 200, Config.JumpValue, function(val) Config.JumpValue = val end)
+    AddSlider(MovementTab, "JumpPower Target", 50, 250, Config.JumpValue, function(val) Config.JumpValue = val end)
 
-    AddHeader(SettingsTab, "Performance & Diagnostics")
-    AddToggle(SettingsTab, "Low-End Performance Mode", Config.PerformanceMode, function(val) 
-        Config.PerformanceMode = val 
-        SendNotification("Performance", val and "Optimization mode enabled." or "Standard performance resumed.", 2)
+    AddHeader(SettingsTab, "Server Utilities")
+    AddButton(SettingsTab, "Rejoin Same Server", function()
+        TeleportService:Teleport(game.PlaceId, LocalPlayer)
     end)
-
-    AddHeader(CreditsTab, "Development Team")
-    
-    local function AddCreditCard(name, role)
-        local card = Instance.new("Frame")
-        card.Parent = CreditsTab
-        card.BackgroundColor3 = Color3.fromRGB(15, 15, 22)
-        card.Size = UDim2.new(1, -6, 0, 48)
-        Instance.new("UICorner", card).CornerRadius = UDim.new(0, 8)
-
-        local nLbl = Instance.new("TextLabel")
-        nLbl.Parent = card
-        nLbl.BackgroundTransparency = 1
-        nLbl.Position = UDim2.new(0, 14, 0, 6)
-        nLbl.Size = UDim2.new(1, -24, 0, 18)
-        nLbl.Font = Enum.Font.GothamBold
-        nLbl.Text = name
-        nLbl.TextColor3 = Color3.fromRGB(255, 255, 255)
-        nLbl.TextSize = 13
-        nLbl.TextXAlignment = Enum.TextXAlignment.Left
-
-        local rLbl = Instance.new("TextLabel")
-        rLbl.Parent = card
-        rLbl.BackgroundTransparency = 1
-        rLbl.Position = UDim2.new(0, 14, 0, 24)
-        rLbl.Size = UDim2.new(1, -24, 0, 18)
-        rLbl.Font = Enum.Font.Gotham
-        rLbl.Text = role
-        rLbl.TextColor3 = Color3.fromRGB(140, 140, 155)
-        rLbl.TextSize = 11
-        rLbl.TextXAlignment = Enum.TextXAlignment.Left
-    end
-
-    AddCreditCard("Jinwoo", "Lead Developer / Architect")
-    AddCreditCard("KENzoro", "Quality Assurance & Testing")
+    AddButton(SettingsTab, "Server Hop (New Server)", function()
+        local servers = {}
+        local req = request or http_request or syn.request
+        if req then
+            local response = req({
+                Url = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?limit=100",
+                Method = "GET"
+            })
+            local data = HttpService:JSONDecode(response.Body)
+            for _, server in pairs(data.data) do
+                if server.playing < server.maxPlayers and server.id ~= game.JobId then
+                    table.insert(servers, server.id)
+                end
+            end
+            if #servers > 0 then
+                TeleportService:TeleportToPlaceInstance(game.PlaceId, servers[math.random(1, #servers)], LocalPlayer)
+            end
+        else
+            SendNotification("Error", "Executor lacks HTTP request capability.", 3)
+        end
+    end)
 end
 
--- Optimized Cached NPC Sweeper Engine
+local CachedNPCs = {}
+local LastCacheUpdate = 0
+local CacheInterval = 2.0
+
 local function GetCachedNPCs()
     local currentTime = os.clock()
-    if currentTime - LastCacheUpdate > CacheInterval or Config.PerformanceMode then
+    if currentTime - LastCacheUpdate > CacheInterval then
         table.clear(CachedNPCs)
-        for _, obj in ipairs(workspace:GetDescendants()) do
+        for _, obj in ipairs(Workspace:GetDescendants()) do
             if obj:IsA("Model") and obj:FindFirstChild("Humanoid") and obj:FindFirstChild("Head") then
                 if not Players:GetPlayerFromCharacter(obj) then
                     table.insert(CachedNPCs, obj)
@@ -681,15 +759,49 @@ local function GetCachedNPCs()
     return CachedNPCs
 end
 
+task.spawn(function()
+    while true do
+        task.wait(Config.AutoAttackDelay)
+        if Config.AutoAttackEnabled then
+            pcall(function()
+                local character = LocalPlayer.Character
+                local hrp = character and character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    for _, player in ipairs(Players:GetPlayers()) do
+                        if player ~= LocalPlayer and player.Character then
+                            local pRoot = player.Character:FindFirstChild("HumanoidRootPart")
+                            local hum = player.Character:FindFirstChild("Humanoid")
+                            if pRoot and hum and hum.Health > 0 then
+                                if (hrp.Position - pRoot.Position).Magnitude <= Config.AutoAttackRange then
+                                    VirtualUser:ClickButton1(Vector2.new())
+                                end
+                            end
+                        end
+                    end
+                    
+                    if Config.FastAttackNPCs then
+                        for _, npc in ipairs(GetCachedNPCs()) do
+                            local nRoot = npc:FindFirstChild("HumanoidRootPart") or npc:FindFirstChild("Head")
+                            local nHum = npc:FindFirstChild("Humanoid")
+                            if nRoot and nHum and nHum.Health > 0 then
+                                if (hrp.Position - nRoot.Position).Magnitude <= Config.AutoAttackRange then
+                                    VirtualUser:ClickButton1(Vector2.new())
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end)
+
 RunService.RenderStepped:Connect(function()
     if not getgenv().VerifiedPassed then return end
 
-    if Config.FOVEnabled then
-        FOVCircle.Visible = true
-        FOVCircle.Radius = Config.FOVSize
+    if FOVCircle.Visible then
+        FOVCircle.Radius = Config.FOV
         FOVCircle.Position = Vector2.new(Mouse.X, Mouse.Y + 36)
-    else
-        FOVCircle.Visible = false
     end
 
     local character = LocalPlayer.Character
@@ -699,56 +811,56 @@ RunService.RenderStepped:Connect(function()
         if Config.JumpBoost then humanoid.JumpPower = Config.JumpValue end
     end
 
-    local targetHead = nil
+    local targetPart = nil
     local shortestDist = math.huge
     local myRoot = character and character:FindFirstChild("HumanoidRootPart")
 
-    if Config.PlayerAimbot then
-        for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") and myRoot then
-                local char = player.Character
-                local humanoid = char:FindFirstChild("Humanoid")
-                local head = char.Head
-                if humanoid and humanoid.Health > 0 then
-                    local worldDist = (myRoot.Position - head.Position).Magnitude
-                    if worldDist <= Config.AimbotDistance then
-                        local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                        if onScreen then
-                            local screenDist = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(headPos.X, headPos.Y)).Magnitude
-                            if (not Config.FOVEnabled or screenDist <= Config.FOVSize) and screenDist < shortestDist then
-                                shortestDist = screenDist
-                                targetHead = head
-                            end
+    if Config.AimbotEnabled or Config.NPCAimbot then
+        local function evaluateTarget(head, hum)
+            if hum and hum.Health > 0 and myRoot then
+                local worldDist = (myRoot.Position - head.Position).Magnitude
+                if worldDist <= Config.MaxDistance then
+                    local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+                    if onScreen then
+                        local screenDist = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(headPos.X, headPos.Y)).Magnitude
+                        if (not FOVCircle.Visible or screenDist <= Config.FOV) and screenDist < shortestDist then
+                            shortestDist = screenDist
+                            targetPart = head
                         end
                     end
                 end
             end
         end
-    elseif Config.NPCAimbot then
-        local npcs = GetCachedNPCs()
-        for _, model in ipairs(npcs) do
-            if model and model:FindFirstChild("Humanoid") and model:FindFirstChild("Head") and myRoot then
-                local humanoid = model.Humanoid
-                local head = model.Head
-                if humanoid.Health > 0 then
-                    local worldDist = (myRoot.Position - head.Position).Magnitude
-                    if worldDist <= Config.AimbotDistance then
-                        local headPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                        if onScreen then
-                            local screenDist = (Vector2.new(Mouse.X, Mouse.Y) - Vector2.new(headPos.X, headPos.Y)).Magnitude
-                            if (not Config.FOVEnabled or screenDist <= Config.FOVSize) and screenDist < shortestDist then
-                                shortestDist = screenDist
-                                targetHead = head
-                            end
-                        end
-                    end
-                end
-            end
-        end
-    end
 
-    if targetHead then
-        Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetHead.Position)
+        if Config.AimbotEnabled then
+            for _, player in ipairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    local head = player.Character:FindFirstChild(Config.AimPart) or player.Character:FindFirstChild("Head")
+                    local hum = player.Character:FindFirstChild("Humanoid")
+                    if head then evaluateTarget(head, hum) end
+                end
+            end
+        end
+
+        if Config.NPCAimbot then
+            for _, model in ipairs(GetCachedNPCs()) do
+                local head = model:FindFirstChild(Config.AimPart) or model:FindFirstChild("Head")
+                local hum = model:FindFirstChild("Humanoid")
+                if head then evaluateTarget(head, hum) end
+            end
+        end
+
+        if targetPart then
+            local targetCF = CFrame.new(Camera.CFrame.Position, targetPart.Position)
+            Camera.CFrame = Camera.CFrame:Lerp(targetCF, 1 / Config.Smoothness)
+        end
     end
 end)
 
+UserInputService.InputBegan:InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Config.AimbotKey then
+        Config.AimbotEnabled = not Config.AimbotEnabled
+        SendNotification("Aimbot", Config.AimbotEnabled and "Aimbot Enabled" or "Aimbot Disabled", 2)
+    end
+end)
