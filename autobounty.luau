@@ -1,133 +1,26 @@
 -- ============================================
--- NEXUS FREE (KEYLESS EDITION) — SELF-CONTAINED
+-- KENHUB - AUTO BOUNTY (KEYLESS EDITION)
 -- Build: 2026-03-30
--- ALL-IN-ONE — NO LOADSTRING, NO EXTERNAL URLS, KEYLESS
 -- ============================================
 
-local _BUILD_VERSION = "7.5-Keyless"
-local _BUILD_BRAND = "NEXUS FREE"
-
--- Services
-local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
 local CoreGui = game:GetService("CoreGui")
+local TeleportService = game:GetService("TeleportService")
 
 local lp = Players.LocalPlayer
 
--- Workspace Folders Setup
-pcall(function()
-    if makefolder then
-        if not isfolder("Nexus") then makefolder("Nexus") end
-        if not isfolder("Nexus/Data") then makefolder("Nexus/Data") end
-        if not isfolder("Nexus/Assets") then makefolder("Nexus/Assets") end
-        if not isfolder("Nexus/Assets/Images") then makefolder("Nexus/Assets/Images") end
-        if not isfolder("Nexus/Assets/Sounds") then makefolder("Nexus/Assets/Sounds") end
-    end
-end)
-
--- ============================================
--- UTILITIES & CONFIG MODULES
--- ============================================
-local Utils = {}
-Utils.ROOT_FOLDER = "Nexus"
-Utils.DATA_FOLDER = "Nexus/Data"
-Utils.CLIENT_VERSION = "7.5-Keyless"
-
-function Utils.formatNumber(num)
-    num = num or 0
-    if num >= 1000000 then
-        return string.format("%.1fM", num / 1000000)
-    elseif num >= 1000 then
-        return string.format("%.1fK", num / 1000)
-    else
-        return tostring(math.floor(num))
-    end
-end
-
-function Utils.formatTime(seconds)
-    seconds = math.floor(seconds or 0)
-    local hours = math.floor(seconds / 3600)
-    local minutes = math.floor((seconds % 3600) / 60)
-    local secs = seconds % 60
-    if hours > 0 then
-        return string.format("%dh %dm %ds", hours, minutes, secs)
-    elseif minutes > 0 then
-        return string.format("%dm %ds", minutes, secs)
-    else
-        return string.format("%ds", secs)
-    end
-end
-
-function Utils.getCurrentBounty()
-    local leaderstats = lp:FindFirstChild("leaderstats")
-    if leaderstats then
-        local bounty = leaderstats:FindFirstChild("Bounty/Honor")
-        if bounty then return tonumber(bounty.Value) or 0 end
-    end
-    return 0
-end
-
-local Config = {
-    Values = {
-        Fruit = "T-Rex",
-        Region = "Auto",
-        Faction = "Pirate",
-        StartupSound = true,
-        Webhook = "",
-        ChangeTeamAt30M = true,
-        AutoKillAt30M = false,
-        HideProfile = false,
-        TransformTRex = true,
-    }
+-- UI & Core Config
+local KenHubConfig = {
+    AutoBounty = false,
+    AutoKillAura = false,
+    AntiAdminLeave = true,
+    FruitMode = "T-Rex",
+    ServerHopOnLowPlayers = false,
+    WebhookURL = ""
 }
-
-function Config.get(key)
-    return Config.Values[key]
-end
-
--- ============================================
--- KEYLESS AUTH BYPASS OVERRIDE
--- ============================================
-local Auth = {}
-Auth.IsAuthenticated = true  -- Bypass keys completely
-
-function Auth.isAuthenticated()
-    return true
-end
-
-function Auth.validateKey(key, callback)
-    callback(true, "Keyless Bypass Active")
-end
-
-function Auth.tryCachedKey(callback)
-    callback(true, "Keyless Bypass Active")
-end
-
--- ============================================
--- PREMIUM GLASSMORPHIC UI (KEYLESS)
--- ============================================
-local UI = {}
-UI.Connections = {}
-
-local Colors = {
-    Background = Color3.fromRGB(12, 12, 15),
-    Surface = Color3.fromRGB(28, 28, 36),
-    SurfaceLight = Color3.fromRGB(42, 42, 55),
-    Primary = Color3.fromRGB(170, 130, 255),
-    PrimaryMuted = Color3.fromRGB(140, 100, 230),
-    Text = Color3.fromRGB(245, 245, 250),
-    TextSecondary = Color3.fromRGB(170, 170, 190),
-    TextMuted = Color3.fromRGB(110, 110, 130),
-    Success = Color3.fromRGB(80, 220, 120),
-    Border = Color3.fromRGB(60, 60, 75),
-}
-
-local function tween(obj, props, duration)
-    TweenService:Create(obj, TweenInfo.new(duration or 0.3, Enum.EasingStyle.Quint, Enum.EasingDirection.Out), props):Play()
-end
 
 local function createCorner(parent, radius)
     local corner = Instance.new("UICorner")
@@ -138,63 +31,61 @@ end
 
 local function createStroke(parent, color)
     local stroke = Instance.new("UIStroke")
-    stroke.Color = color or Colors.Border
+    stroke.Color = color or Color3.fromRGB(60, 60, 75)
     stroke.Thickness = 1
     stroke.Parent = parent
     return stroke
 end
 
-function UI.init()
-    if CoreGui:FindFirstChild("NexusFreeUI") then
-        CoreGui.NexusFreeUI:Destroy()
+local function initKenHubUI()
+    if CoreGui:FindFirstChild("KenHubAutoBounty") then
+        CoreGui.KenHubAutoBounty:Destroy()
     end
 
     local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "NexusFreeUI"
+    screenGui.Name = "KenHubAutoBounty"
     screenGui.ResetOnSpawn = false
     screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     screenGui.Parent = CoreGui
 
     local mainFrame = Instance.new("Frame")
     mainFrame.Name = "MainFrame"
-    mainFrame.BackgroundColor3 = Colors.Background
-    mainFrame.Size = UDim2.new(0, 560, 0, 390)
-    mainFrame.Position = UDim2.new(0.5, -280, 0.5, -195)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(12, 12, 15)
+    mainFrame.Size = UDim2.new(0, 520, 0, 380)
+    mainFrame.Position = UDim2.new(0.5, -260, 0.5, -190)
     mainFrame.Active = true
     mainFrame.Draggable = true
     mainFrame.Parent = screenGui
     createCorner(mainFrame, 12)
-    createStroke(mainFrame, Colors.Border)
+    createStroke(mainFrame, Color3.fromRGB(70, 50, 120))
 
-    -- Top Bar Header
+    -- Top Header
     local topBar = Instance.new("Frame")
-    topBar.Name = "TopBar"
-    topBar.BackgroundColor3 = Colors.Surface
+    topBar.BackgroundColor3 = Color3.fromRGB(22, 22, 30)
     topBar.Size = UDim2.new(1, 0, 0, 40)
     topBar.Parent = mainFrame
     createCorner(topBar, 12)
 
     local title = Instance.new("TextLabel")
-    title.Text = "  NEXUS FREE <font color='#aa82ff'>[KEYLESS]</font>"
+    title.Text = "  KENHUB <font color='#aa82ff'>[AUTO BOUNTY]</font>"
     title.RichText = true
     title.Font = Enum.Font.GothamBold
-    title.TextColor3 = Colors.Text
+    title.TextColor3 = Color3.fromRGB(245, 245, 250)
     title.TextSize = 14
-    title.TextXAlignment = Enum.TextXAlignment.Left
-    title.Size = UDim2.new(0.6, 0, 1, 0)
+    title.Size = UDim2.new(0.8, 0, 1, 0)
     title.BackgroundTransparency = 1
+    title.TextXAlignment = Enum.TextXAlignment.Left
     title.Position = UDim2.new(0, 10, 0, 0)
     title.Parent = topBar
 
-    -- Close Button
     local closeBtn = Instance.new("TextButton")
     closeBtn.Text = "×"
     closeBtn.Font = Enum.Font.GothamBold
-    closeBtn.TextColor3 = Colors.TextSecondary
+    closeBtn.TextColor3 = Color3.fromRGB(170, 170, 190)
     closeBtn.TextSize = 18
     closeBtn.Size = UDim2.new(0, 35, 0, 35)
     closeBtn.Position = UDim2.new(1, -40, 0, 2.5)
-    closeBtn.BackgroundColor3 = Colors.SurfaceLight
+    closeBtn.BackgroundColor3 = Color3.fromRGB(35, 35, 45)
     closeBtn.Parent = topBar
     createCorner(closeBtn, 8)
 
@@ -202,130 +93,78 @@ function UI.init()
         screenGui:Destroy()
     end)
 
-    -- Sidebar Navigation Tabs
-    local sidebar = Instance.new("Frame")
-    sidebar.Name = "Sidebar"
-    sidebar.BackgroundColor3 = Colors.Surface
-    sidebar.Size = UDim2.new(0, 150, 1, -40)
-    sidebar.Position = UDim2.new(0, 0, 0, 40)
-    sidebar.Parent = mainFrame
-
-    local containerLayout = Instance.new("UIListLayout")
-    containerLayout.SortOrder = Enum.SortOrder.LayoutOrder
-    containerLayout.Padding = UDim.new(0, 5)
-    containerLayout.Parent = sidebar
-
-    -- Dashboard Content Holder
-    local contentArea = Instance.new("Frame")
-    contentArea.Name = "ContentArea"
+    -- Content Area / Toggles Container
+    local contentArea = Instance.new("ScrollingFrame")
     contentArea.BackgroundTransparency = 1
-    contentArea.Size = UDim2.new(1, -160, 1, -50)
-    contentArea.Position = UDim2.new(0, 155, 0, 45)
+    contentArea.Size = UDim2.new(1, -20, 1, -55)
+    contentArea.Position = UDim2.new(0, 10, 0, 48)
+    contentArea.CanvasSize = UDim2.new(0, 0, 0, 300)
+    contentArea.ScrollBarThickness = 3
     contentArea.Parent = mainFrame
 
-    -- Stat Cards (Live Dashboard Stats)
-    local function createCard(name, labelText, defaultVal, posX, posY)
-        local card = Instance.new("Frame")
-        card.BackgroundColor3 = Colors.SurfaceLight
-        card.Size = UDim2.new(0.48, 0, 0, 75)
-        card.Position = posX
-        card.Parent = contentArea
-        createCorner(card, 8)
+    local layout = Instance.new("UIListLayout")
+    layout.SortOrder = Enum.SortOrder.LayoutOrder
+    layout.Padding = UDim.new(0, 8)
+    layout.Parent = contentArea
 
-        local label = Instance.new("TextLabel")
-        label.Text = labelText
-        label.Font = Enum.Font.GothamSemibold
-        label.TextColor3 = Colors.TextSecondary
-        label.TextSize = 11
-        label.Size = UDim2.new(1, -15, 0, 20)
-        label.Position = UDim2.new(0, 12, 0, 8)
-        label.BackgroundTransparency = 1
-        label.TextXAlignment = Enum.TextXAlignment.Left
-        label.Parent = card
-
-        local val = Instance.new("TextLabel")
-        val.Name = name
-        val.Text = defaultVal
-        val.Font = Enum.Font.GothamBold
-        val.TextColor3 = Colors.Text
-        val.TextSize = 16
-        val.Size = UDim2.new(1, -15, 0, 30)
-        val.Position = UDim2.new(0, 12, 0, 32)
-        val.BackgroundTransparency = 1
-        val.TextXAlignment = Enum.TextXAlignment.Left
-        val.Parent = card
-
-        return val
-    end
-
-    local killsVal = createCard("KillsVal", "TOTAL KILLS", "0", UDim2.new(0, 0, 0, 0), UDim2.new(0, 0, 0, 0))
-    local bountyVal = createCard("BountyVal", "SESSION BOUNTY", "+$0", UDim2.new(0.52, 0, 0, 0), UDim2.new(0, 0, 0, 0))
-    local timeVal = createCard("TimeVal", "RUN TIME", "0m 0s", UDim2.new(0, 0, 0, 85), UDim2.new(0, 0, 0, 0))
-    local statusVal = createCard("StatusVal", "ENGINE STATUS", "Running (Keyless)", UDim2.new(0.52, 0, 0, 85), UDim2.new(0, 0, 0, 0))
-    statusVal.TextColor3 = Colors.Success
-
-    -- Feature Toggle List Container
-    local toggleContainer = Instance.new("ScrollingFrame")
-    toggleContainer.Name = "Toggles"
-    toggleContainer.BackgroundTransparency = 1
-    toggleContainer.Size = UDim2.new(1, 0, 0, 180)
-    toggleContainer.Position = UDim2.new(0, 0, 0, 175)
-    toggleContainer.CanvasSize = UDim2.new(0, 0, 0, 220)
-    toggleContainer.ScrollBarThickness = 3
-    toggleContainer.Parent = contentArea
-
-    local function addToggle(textString, initialValue, callback)
+    local function addFeatureToggle(name, stateVar, callback)
         local btn = Instance.new("TextButton")
-        btn.BackgroundColor3 = Colors.SurfaceLight
-        btn.Size = UDim2.new(1, -5, 0, 34)
-        btn.Text = "  " .. textString
+        btn.BackgroundColor3 = Color3.fromRGB(25, 25, 35)
+        btn.Size = UDim2.new(1, 0, 0, 40)
+        btn.Text = "  " .. name
         btn.Font = Enum.Font.GothamMedium
-        btn.TextColor3 = Colors.Text
-        btn.TextSize = 12
+        btn.TextColor3 = Color3.fromRGB(230, 230, 240)
+        btn.TextSize = 13
         btn.TextXAlignment = Enum.TextXAlignment.Left
         btn.AutoButtonColor = false
-        btn.Parent = toggleContainer
-        createCorner(btn, 6)
+        btn.Parent = contentArea
+        createCorner(btn, 8)
 
         local indicator = Instance.new("Frame")
-        indicator.Size = UDim2.new(0, 12, 0, 12)
-        indicator.Position = UDim2.new(1, -25, 0.5, -6)
-        indicator.BackgroundColor3 = initialValue and Colors.Success or Colors.Border
+        indicator.Size = UDim2.new(0, 14, 0, 14)
+        indicator.Position = UDim2.new(1, -30, 0.5, -7)
+        indicator.BackgroundColor3 = KenHubConfig[stateVar] and Color3.fromRGB(80, 220, 120) or Color3.fromRGB(60, 60, 75)
         indicator.Parent = btn
-        createCorner(indicator, 6)
+        createCorner(indicator, 7)
 
-        local state = initialValue
         btn.MouseButton1Click:Connect(function()
-            state = not state
-            indicator.BackgroundColor3 = state and Colors.Success or Colors.Border
-            callback(state)
+            KenHubConfig[stateVar] = not KenHubConfig[stateVar]
+            indicator.BackgroundColor3 = KenHubConfig[stateVar] and Color3.fromRGB(80, 220, 120) or Color3.fromRGB(60, 60, 75)
+            callback(KenHubConfig[stateVar])
         end)
     end
 
-    local layoutToggles = Instance.new("UIListLayout")
-    layoutToggles.SortOrder = Enum.SortOrder.LayoutOrder
-    layoutToggles.Padding = UDim.new(0, 6)
-    layoutToggles.Parent = toggleContainer
+    addFeatureToggle("Auto Bounty Farm (Teleport & Target Players)", "AutoBounty", function(state)
+        print("[KenHub] Auto Bounty toggled:", state)
+    end)
 
-    addToggle("Auto-Transform T-Rex Rage", Config.get("TransformTRex"), function(v) end)
-    addToggle("Team Switch at 30M Bounty", Config.get("ChangeTeamAt30M"), function(v) end)
-    addToggle("Startup Audio Hook (Bankai)", Config.get("StartupSound"), function(v) end)
-    addToggle("Hide Profile Identifiers", Config.get("HideProfile"), function(v) end)
+    addFeatureToggle("Fast M1 Spam / Fruit Attack Aura (T-Rex/Leopard)", "AutoKillAura", function(state)
+        print("[KenHub] Kill Aura toggled:", state)
+    end)
 
-    -- Real-time UI Loop Updates
-    local startTime = tick()
-    task.spawn(function()
-        while screenGui.Parent do
-            task.wait(1)
-            local elapsed = tick() - startTime
-            timeVal.Text = Utils.formatTime(elapsed)
-        end
+    addFeatureToggle("Anti-Admin (Auto Leave on Staff Join)", "AntiAdminLeave", function(state)
+        print("[KenHub] Anti-Admin toggled:", state)
+    end)
+
+    addFeatureToggle("Auto Server Hop on Low Player Count", "ServerHopOnLowPlayers", function(state)
+        print("[KenHub] Server Hop toggled:", state)
     end)
 end
 
--- Initialize the Core UI directly with Keyless Mode
-UI.init()
-print("[Nexus-Keyless] [+] Successfully injected with no keys required!")
+-- Anti-Admin Logic Check (Kicks/Hops if specific high-rank roles join)
+Players.PlayerAdded:Connect(function(player)
+    if KenHubConfig.AntiAdminLeave then
+        pcall(function()
+            if player:GetRankInGroup(123456) >= 250 or player.UserId == 1 or player.Name:lower():find("admin") then
+                TeleportService:Teleport(game.PlaceId, lp)
+            end
+        end)
+    end
+end)
+
+initKenHubUI()
+print("[KenHub] Successfully Loaded Auto Bounty Suite!")
+
 
 
 
