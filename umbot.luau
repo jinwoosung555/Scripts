@@ -1,274 +1,295 @@
--- Redz Style Hub Blox Fruits | Fixed Combat, Auto Quest, and Remote Routing
--- Keyless / Comprehensive Executor Support (Delta, Codex, Solara, Fluxus)
+-- ============================================================
+-- KEN HUB v4.0 - BLOX FRUIT AIMBOT, SILENT AIM & FAST ATTACK
+-- ============================================================
+print("[Ken Hub] Initializing v4.0 Aimbot & Silent Aim systems...")
+repeat task.wait() until game:IsLoaded()
 
 local Players = game:GetService("Players")
-local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local Workspace = game:GetService("Workspace")
-local VirtualUser = game:GetService("VirtualUser")
+local CoreGui = game:GetService("CoreGui")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local Camera = Workspace.CurrentCamera
+
 local LocalPlayer = Players.LocalPlayer
 
--- Clean up existing UI instances to prevent duplication stack leaks
-if CoreGui:FindFirstChild("RedzProductionHub") then
-    CoreGui.RedzProductionHub:Destroy()
-end
+-- Global Configuration & States
+_G.AimbotEnabled = false
+_G.SilentAimEnabled = false
+_G.AimPrediction = true
+_G.AimPart = "HumanoidRootPart" -- "HumanoidRootPart" or "Head"
+_G.FOVRadius = 150
+_G.FastAttack = os.time()
 
-local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "RedzProductionHub"
-ScreenGui.ResetOnSpawn = false
-ScreenGui.Parent = CoreGui
+Config = Config or {
+    AutoBuso = true,
+    Team = "Pirates",
+}
 
--- Anti-AFK Service Integration
-LocalPlayer.Idled:Connect(function()
-    VirtualUser:Button2Down(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
-    task.wait(1)
-    VirtualUser:Button2Up(Vector2.new(0,0), Workspace.CurrentCamera.CFrame)
+-- Ensure Team / Character Loaded
+repeat
+    task.wait()
+    pcall(function()
+        ReplicatedStorage.Remotes.CommF_:InvokeServer("SetTeam", Config.Team)
+    end)
+until LocalPlayer.Character
+
+print("[Ken Hub] Character loaded. Setting up target acquisition...")
+
+-- ============================================================
+-- 1. FOV CIRCLE VISUALIZATION
+-- ============================================================
+local FOVCircle = Drawing.new("Circle")
+FOVCircle.Visible = false
+FOVCircle.Filled = false
+FOVCircle.Radius = _G.FOVRadius
+FOVCircle.Color = Color3.fromRGB(0, 255, 150)
+FOVCircle.Transparency = 0.7
+FOVCircle.Thickness = 1.5
+FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+RunService.RenderStepped:Connect(function()
+    FOVCircle.Visible = _G.AimbotEnabled or _G.SilentAimEnabled
+    FOVCircle.Position = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+    FOVCircle.Radius = _G.FOVRadius
 end)
 
--- Main Draggable Window Framework
-local MainFrame = Instance.new("Frame")
-MainFrame.Size = UDim2.new(0, 600, 0, 420)
-MainFrame.Position = UDim2.new(0.5, -300, 0.5, -210)
-MainFrame.BackgroundColor3 = Color3.fromRGB(13, 13, 18)
-MainFrame.BorderSizePixel = 0
-MainFrame.Active = true
-MainFrame.Draggable = true
-MainFrame.Parent = ScreenGui
+-- ============================================================
+-- 2. FAST ATTACK V4 (PRESERVED FROM TEMPLATE)
+-- ============================================================
+local Net = ReplicatedStorage:WaitForChild("Modules"):WaitForChild("Net")
+local RegisterAttack = Net:WaitForChild("RE/RegisterAttack")
+local RegisterHit = Net:WaitForChild("RE/RegisterHit")
 
-local MainCorner = Instance.new("UICorner")
-MainCorner.CornerRadius = UDim.new(0, 10)
-MainCorner.Parent = MainFrame
+local _flashyCache = {}
+local _flashyCacheTime = 0
+local _flashyRange = 80
 
--- Top Navigation Bar Header
-local TopBar = Instance.new("Frame")
-TopBar.Size = UDim2.new(1, 0, 0, 45)
-TopBar.BackgroundColor3 = Color3.fromRGB(20, 20, 26)
-TopBar.BorderSizePixel = 0
-TopBar.Parent = MainFrame
-
-local TopCorner = Instance.new("UICorner")
-TopCorner.CornerRadius = UDim.new(0, 10)
-TopBar.Parent = MainFrame
-
-local TitleLabel = Instance.new("TextLabel")
-TitleLabel.Size = UDim2.new(0, 350, 1, 0)
-TitleLabel.Position = UDim2.new(0, 15, 0, 0)
-TitleLabel.BackgroundTransparency = 1
-TitleLabel.Text = "Redz Hub | Blox Fruits (Fixed Combat Build)"
-TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-TitleLabel.TextSize = 15
-TitleLabel.Font = Enum.Font.GothamBold
-TitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-TitleLabel.Parent = TopBar
-
--- Dynamic Container Area for Features
-local ContentArea = Instance.new("ScrollingFrame")
-ContentArea.Size = UDim2.new(1, -20, 1, -65)
-ContentArea.Position = UDim2.new(0, 10, 0, 55)
-ContentArea.BackgroundTransparency = 1
-ContentArea.CanvasSize = UDim2.new(0, 0, 2.5, 0)
-ContentArea.ScrollBarThickness = 4
-ContentArea.Parent = MainFrame
-
-local UIListLayout = Instance.new("UIListLayout")
-UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
-UIListLayout.Padding = UDim.new(0, 8)
-UIListLayout.Parent = ContentArea
-
--- Helper Function to Build Toggles
-local function AddToggle(name, callback)
-    local ToggleBtn = Instance.new("TextButton")
-    ToggleBtn.Size = UDim2.new(1, -10, 0, 38)
-    ToggleBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
-    ToggleBtn.Text = "  [Off] " .. name
-    ToggleBtn.TextColor3 = Color3.fromRGB(170, 170, 170)
-    ToggleBtn.TextSize = 13
-    ToggleBtn.Font = Enum.Font.GothamMedium
-    ToggleBtn.TextXAlignment = Enum.TextXAlignment.Left
-    ToggleBtn.Parent = ContentArea
-
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 6)
-    Corner.Parent = ToggleBtn
-
-    local active = false
-    ToggleBtn.MouseButton1Click:Connect(function()
-        active = not active
-        if active then
-            ToggleBtn.BackgroundColor3 = Color3.fromRGB(0, 150, 90)
-            ToggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-            ToggleBtn.Text = "  [On] " .. name
-        else
-            ToggleBtn.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
-            ToggleBtn.TextColor3 = Color3.fromRGB(170, 170, 170)
-            ToggleBtn.Text = "  [Off] " .. name
+local function GetAllBladeHits()
+    local now = tick()
+    if now - _flashyCacheTime < 0.03 then return _flashyCache end
+    _flashyCacheTime = now
+    
+    local bladehits = {}
+    local hrp = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not hrp then return bladehits end
+    
+    if Workspace:FindFirstChild("Enemies") then
+        for _, x in pairs(Workspace.Enemies:GetChildren()) do
+            if x:FindFirstChild('Humanoid') and x:FindFirstChild('HumanoidRootPart') and x.Humanoid.Health > 0 then
+                if (x.HumanoidRootPart.Position - hrp.Position).Magnitude <= _flashyRange then
+                    table.insert(bladehits, x)
+                end
+            end
         end
-        pcall(callback, active)
-    end)
+    end
+    _flashyCache = bladehits
+    return bladehits
 end
 
--- Helper Function to Build Action Buttons
-local function AddButton(name, callback)
-    local ActionBtn = Instance.new("TextButton")
-    ActionBtn.Size = UDim2.new(1, -10, 0, 38)
-    ActionBtn.BackgroundColor3 = Color3.fromRGB(34, 34, 44)
-    ActionBtn.Text = "  " .. name
-    ActionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
-    ActionBtn.TextSize = 13
-    ActionBtn.Font = Enum.Font.GothamMedium
-    ActionBtn.TextXAlignment = Enum.TextXAlignment.Left
-    ActionBtn.Parent = ContentArea
-
-    local Corner = Instance.new("UICorner")
-    Corner.CornerRadius = UDim.new(0, 6)
-    Corner.Parent = ActionBtn
-
-    ActionBtn.MouseButton1Click:Connect(function()
-        pcall(callback)
-    end)
+local FastAttackHandler = {}
+function FastAttackHandler:Attack()
+    local hits = {}
+    for _, entity in pairs(GetAllBladeHits()) do
+        table.insert(hits, entity)
+    end
+    if #hits == 0 then return end
+    
+    local packet = {[1] = nil, [2] = {}, [4] = "078da5141"}
+    for _, target in pairs(hits) do
+        RegisterAttack:FireServer(0)
+        if not packet[1] then packet[1] = target.Head end
+        table.insert(packet[2], {[1] = target, [2] = target.HumanoidRootPart})
+        table.insert(packet[2], target)
+    end
+    RegisterHit:FireServer(unpack(packet))
 end
 
--- Feature Implementations with Fixed Auto Quest & Direct Damage Remotes:
+task.spawn(function()
+    RunService.Heartbeat:Connect(function()
+        if _G.FastAttack ~= os.time() then return end
+        pcall(function() FastAttackHandler:Attack() end)
+    end)
+end)
 
--- 1. Auto Quest & Farm Level Loop
-AddToggle("Auto Quest & Farm Level", function(state)
-    getgenv().AutoQuestFarm = state
-    task.spawn(function()
-        while getgenv().AutoQuestFarm do
-            task.wait(0.5)
-            pcall(function()
-                local char = LocalPlayer.Character
-                if char and char:FindFirstChild("HumanoidRootPart") then
-                    local playerLevel = LocalPlayer.Data.Level.Value
-                    
-                    -- Check if player already has an active quest
-                    local hasQuest = LocalPlayer.PlayerGui:FindFirstChild("Main") 
-                        and LocalPlayer.PlayerGui.Main:FindFirstChild("Quest") 
-                        and LocalPlayer.PlayerGui.Main.Quest.Visible
-                    
-                    if not hasQuest then
-                        -- Request proper level-based quest automatically via CommF_
-                        ReplicatedStorage.Remotes.CommF_:InvokeServer("StartQuest", "BanditQuest1", 1) -- Automatically adjusts based on hub framework templates
-                        task.wait(1)
-                    else
-                        -- Target nearby valid enemies matching quest parameters
-                        for _, enemy in ipairs(Workspace.Enemies:GetChildren()) do
-                            if enemy:FindFirstChild("Humanoid") and enemy.Humanoid.Health > 0 and enemy:FindFirstChild("HumanoidRootPart") then
-                                if (enemy.HumanoidRootPart.Position - char.HumanoidRootPart.Position).Magnitude < 400 then
-                                    char.HumanoidRootPart.CFrame = enemy.HumanoidRootPart.CFrame * CFrame.new(0, 15, 3)
-                                    break
-                                end
-                            end
-                        end
+-- ============================================================
+-- 3. ADVANCED TARGET FINDER (NEAREST TO MOUSE/CENTER)
+-- ============================================================
+local function GetBestTarget()
+    local closestTarget = nil
+    local shortestDist = _G.FOVRadius
+    local screenCenter = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
+
+    -- Check Enemies (NPC/Bosses)
+    if Workspace:FindFirstChild("Enemies") then
+        for _, enemy in pairs(Workspace.Enemies:GetChildren()) do
+            local part = enemy:FindFirstChild(_G.AimPart) or enemy:FindFirstChild("HumanoidRootPart")
+            local hum = enemy:FindFirstChild("Humanoid")
+            if part and hum and hum.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen then
+                    local magnitude = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    if magnitude < shortestDist then
+                        shortestDist = magnitude
+                        closestTarget = part
                     end
                 end
-            end)
-        end
-    end)
-end)
-
--- 2. Fixed Fast Attack & Damage Registration Hook
-AddToggle("Fast Attack (Fixed Damage M1)", function(state)
-    getgenv().FastAttackFixed = state
-    task.spawn(function()
-        pcall(function()
-            local CombatFramework = require(LocalPlayer.PlayerScripts:WaitForChild("CombatFramework"))
-            local CombatFrameworkR = getupvalues(CombatFramework)[2]
-            
-            while getgenv().FastAttackFixed do
-                task.wait()
-                if CombatFrameworkR and CombatFrameworkR.activeController then
-                    local controller = CombatFrameworkR.activeController
-                    controller.timeToNextAttack = 0
-                    controller.hitboxMagnitude = 80
-                    controller.increment = 3
-                    
-                    -- Force valid remote registration so server registers damage hits
-                    pcall(function()
-                        local blade = controller.blades[1]
-                        if blade then
-                            local args = {
-                                [1] = 1,
-                                [2] = blade,
-                                [3] = 1
-                            }
-                            ReplicatedStorage.Remotes.Validator:FireServer(unpack(args))
-                        end
-                    end)
-                    
-                    controller:attack()
-                end
             end
-        end)
-    end)
-end)
-
--- 3. Automated Stat Allocation Builder
-AddToggle("Auto Stats (Melee / Defense / Fruit)", function(state)
-    getgenv().AutoStats = state
-    task.spawn(function()
-        while getgenv().AutoStats do
-            task.wait(1.5)
-            pcall(function()
-                ReplicatedStorage.Remotes.CommF_:InvokeServer("AddPoint", "Melee", 3)
-                ReplicatedStorage.Remotes.CommF_:InvokeServer("AddPoint", "Defense", 3)
-                ReplicatedStorage.Remotes.CommF_:InvokeServer("AddPoint", "Demon Fruit", 3)
-            end)
         end
-    end)
-end)
+    end
 
--- 4. Dynamic Devil Fruit Finder and Teleport
-AddToggle("Devil Fruit Notifier & Auto Teleport", function(state)
-    getgenv().FruitFinder = state
-    task.spawn(function()
-        while getgenv().FruitFinder do
-            task.wait(2)
-            pcall(function()
-                for _, obj in ipairs(Workspace:GetChildren()) do
-                    if obj.Name:find("Fruit") and obj:FindFirstChild("Handle") then
-                        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-                            LocalPlayer.Character.HumanoidRootPart.CFrame = obj.Handle.CFrame
-                        end
+    -- Check Players (PVP Mode)
+    for _, player in pairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and player.Character then
+            local part = player.Character:FindFirstChild(_G.AimPart) or player.Character:FindFirstChild("HumanoidRootPart")
+            local hum = player.Character:FindFirstChild("Humanoid")
+            if part and hum and hum.Health > 0 then
+                local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                if onScreen then
+                    local magnitude = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                    if magnitude < shortestDist then
+                        shortestDist = magnitude
+                        closestTarget = part
                     end
                 end
-            end)
-        end
-    end)
-end)
-
--- 5. No-Clip Movement Bypass
-AddToggle("No-Clip Explorer Mode", function(state)
-    getgenv().NoClip = state
-    RunService.Stepped:Connect(function()
-        if getgenv().NoClip and LocalPlayer.Character then
-            for _, part in ipairs(LocalPlayer.Character:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
             end
         end
-    end)
-end)
+    end
 
--- 6. Optimized Server Hop Utility
-AddButton("Server Hop (Find Alternative Server)", function()
-    local ServersUrl = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
-    local Success, Result = pcall(function()
-        return HttpService:JSONDecode(game:HttpGet(ServersUrl))
-    end)
-    if Success and Result and Result.data then
-        for _, s in ipairs(Result.data) do
-            if s.playing < s.maxPlayers and s.id ~= game.JobId then
-                TeleportService:TeleportToPlaceInstance(game.PlaceId, s.id, LocalPlayer)
-                break
+    return closestTarget
+end
+
+-- ============================================================
+-- 4. AIMBOT & SILENT AIM CORE HOOKS
+-- ============================================================
+-- Camera Aimbot Loop
+RunService.RenderStepped:Connect(function()
+    if _G.AimbotEnabled then
+        local targetPart = GetBestTarget()
+        if targetPart then
+            local targetPos = targetPart.Position
+            if _G.AimPrediction and targetPart.Parent:FindFirstChild("HumanoidRootPart") then
+                -- Add simple velocity vector prediction for moving players/mobs
+                local vel = targetPart.Parent.HumanoidRootPart.AssemblyLinearVelocity
+                targetPos = targetPos + (vel * 0.08)
             end
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, targetPos)
         end
     end
 end)
 
-print("Redz Production Hub Loaded (Combat & Quest Fix Applied)!")
+-- Silent Aim Hook (Redirects Skill/Bullet Raycasts or Target Arguments)
+local oldIndex
+oldIndex = hookmetamethod(game, "__index", function(self, index)
+    if not checkcaller() and _G.SilentAimEnabled and index == "Hit" then
+        local targetPart = GetBestTarget()
+        if targetPart then
+            return targetPart.CFrame
+        end
+    end
+    return oldIndex(self, index)
+end)
 
+-- ============================================================
+-- 5. KEN HUB MOBILE UI INTERFACE v4
+-- ============================================================
+pcall(function()
+    local old = CoreGui:FindFirstChild("KenHubUI")
+    if old then old:Destroy() end
+end)
+
+local gui = Instance.new("ScreenGui", CoreGui)
+gui.Name = "KenHubUI"
+gui.ResetOnSpawn = false
+
+local panel = Instance.new("Frame", gui)
+panel.Size = UDim2.new(0, 320, 0, 440)
+panel.Position = UDim2.new(0.5, -160, 0.4, -220)
+panel.BackgroundColor3 = Color3.fromRGB(15, 17, 23)
+panel.BorderSizePixel = 0
+Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 12)
+
+local stroke = Instance.new("UIStroke", panel)
+stroke.Color = Color3.fromRGB(0, 150, 255)
+stroke.Thickness = 1.5
+
+local title = Instance.new("TextLabel", panel)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.BackgroundTransparency = 1
+title.Text = "KEN HUB v4.0 | Aimbot & Fast Attack"
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+title.TextColor3 = Color3.fromRGB(0, 255, 150)
+
+local statusLbl = Instance.new("TextLabel", panel)
+statusLbl.Size = UDim2.new(1, -20, 0, 25)
+statusLbl.Position = UDim2.new(0, 10, 0, 40)
+statusLbl.BackgroundTransparency = 1
+statusLbl.Text = "Status: Ready"
+statusLbl.Font = Enum.Font.Gotham
+statusLbl.TextSize, statusLbl.TextColor3 = 12, Color3.fromRGB(200, 200, 200)
+statusLbl.TextXAlignment = Enum.TextXAlignment.Left
+
+local scroll = Instance.new("ScrollingFrame", panel)
+scroll.Size = UDim2.new(1, -20, 1, -75)
+scroll.Position = UDim2.new(0, 10, 0, 70)
+scroll.BackgroundTransparency = 1
+scroll.ScrollBarThickness = 4
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local list = Instance.new("UIListLayout", scroll)
+list.Padding = UDim.new(0, 6)
+
+local function createButton(name, callback)
+    local btn = Instance.new("TextButton", scroll)
+    btn.Size = UDim2.new(1, -4, 0, 38)
+    btn.BackgroundColor3 = Color3.fromRGB(28, 32, 45)
+    btn.BorderSizePixel = 0
+    btn.Text = name
+    btn.Font = Enum.Font.GothamSemibold
+    btn.TextSize = 13
+    btn.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
+    btn.Activated:Connect(callback)
+    return btn
+end
+
+-- UI Interactive Controls
+createButton("Toggle Aimbot: [ OFF ]", function(btn)
+    _G.AimbotEnabled = not _G.AimbotEnabled
+    btn.Text = "Toggle Aimbot: [ " .. (_G.AimbotEnabled and "ON" or "OFF") .. " ]"
+    statusLbl.Text = "Aimbot: " .. (_G.AimbotEnabled and "Active" or "Disabled")
+end)
+
+createButton("Toggle Silent Aim: [ OFF ]", function(btn)
+    _G.SilentAimEnabled = not _G.SilentAimEnabled
+    btn.Text = "Toggle Silent Aim: [ " .. (_G.SilentAimEnabled and "ON" or "OFF") .. " ]"
+    statusLbl.Text = "Silent Aim: " .. (_G.SilentAimEnabled and "Active" or "Disabled")
+end)
+
+createButton("Toggle Aim Part (Root / Head)", function()
+    if _G.AimPart == "HumanoidRootPart" then
+        _G.AimPart = "Head"
+    else
+        _G.AimPart = "HumanoidRootPart"
+    end
+    statusLbl.Text = "Target Lock Part: " .. _G.AimPart
+end)
+
+createButton("Toggle FOV Size (150 / 300 / 500)", function()
+    if _G.FOVRadius == 150 then
+        _G.FOVRadius = 300
+    elseif _G.FOVRadius == 300 then
+        _G.FOVRadius = 500
+    else
+        _G.FOVRadius = 150
+    end
+    statusLbl.Text = "FOV Radius set to: " .. _G.FOVRadius
+end)
+
+createButton("Trigger Fast Attack Loop", function()
+    _G.FastAttack = os.time()
+    statusLbl.Text = "Fast Attack Loop Re-triggered!"
+end)
+
+print("[Ken Hub] v4.0 Aimbot & Silent Aim fully initialized!")
